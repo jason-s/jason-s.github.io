@@ -1,0 +1,428 @@
+\documentclass[border=3mm]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{matrix, calc, graphs, fit, backgrounds, positioning, arrows}
+\definecolor{myorange}{rgb}{1,0.8,0}
+\definecolor{mygreen}{rgb}{0.8,1.0,0.533}
+\definecolor{mytan}{rgb}{1,0.98,0.75}
+\definecolor{myyellow}{rgb}{0.98,1,0.25}
+\definecolor{myblue}{rgb}{0.8,0.8,1}
+\title{kittens}
+
+\pgfdeclarelayer{lines}    % declare background layer
+\pgfsetlayers{lines,main}
+\pgfarrowsdeclare{build}{build}
+{
+  \pgfarrowsleftextend{2pt}
+  \pgfarrowsrightextend{2pt}
+}
+{
+  \pgfpathmoveto{\pgfqpoint{0pt}{0pt}}
+  \pgfpathlineto{\pgfqpoint{0pt}{-1pt}}
+  \pgfpathlineto{\pgfqpoint{2pt}{-1pt}}
+  \pgfpathlineto{\pgfqpoint{2pt}{1pt}}
+  \pgfpathlineto{\pgfqpoint{0pt}{1pt}}
+  \pgfpathlineto{\pgfqpoint{0pt}{0pt}}
+  \pgfusepathqfill
+}
+
+\makeatletter
+\pgfdeclareshape{electric plug}{%
+  \inheritsavedanchors[from=rectangle]%
+  \inheritanchorborder[from=rectangle]%
+  \inheritanchor[from=rectangle]{center}%
+  \inheritanchor[from=rectangle]{west}%
+  \inheritanchor[from=rectangle]{east}%
+  \inheritanchor[from=rectangle]{north}%
+  \inheritanchor[from=rectangle]{south}%
+  %
+  \newdimen{\pgf@dx}
+  \newdimen{\pgf@dy}
+  \backgroundpath{%
+    \southwest \pgf@xa=\pgf@x \pgf@ya=\pgf@y
+    \northeast \pgf@xb=\pgf@x \pgf@yb=\pgf@y
+    \pgfextractx{\pgf@dx}{\pgfpointadd{\northeast}{\pgfpointscale{-1}{\southwest}}}
+    \pgfextracty{\pgf@dy}{\pgfpointadd{\northeast}{\pgfpointscale{-1}{\southwest}}}
+    \pgfpathmoveto{\pgfpoint{\pgf@xa+0.75\pgf@dx}{\pgf@yb}}
+    \pgfpathlineto{\pgfpoint{\pgf@xa+0.75\pgf@dx}{\pgf@ya+0.7\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xb}{\pgf@ya+0.7\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xb}{\pgf@ya+0.68\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xa+0.75\pgf@dx}{\pgf@ya+0.68\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xa+0.75\pgf@dx}{\pgf@ya+0.32\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xb}{\pgf@ya+0.32\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xb}{\pgf@ya+0.3\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xa+0.75\pgf@dx}{\pgf@ya+0.3\pgf@dy}}
+    \pgfpathlineto{\pgfpoint{\pgf@xa+0.75\pgf@dx}{\pgf@ya}}
+    \pgfpathlineto{\pgfpoint{\pgf@xa+0.5\pgf@dx}{\pgf@ya}}
+    \pgfpatharc{270}{90}{0.5\pgf@dx and 0.5\pgf@dy}
+    \pgfpathclose
+  }%
+}
+\pgfdeclareshape{atomshape}{%
+  \inheritsavedanchors[from=circle]%
+  \inheritanchorborder[from=circle]%
+  \inheritanchor[from=circle]{center}%
+  \inheritanchor[from=circle]{south}%
+  \inheritanchor[from=circle]{west}%
+  \inheritanchor[from=circle]{north}%
+  \inheritanchor[from=circle]{east}%
+  %
+  \backgroundpath{%
+    \pgfpathcircle{\pgfpointorigin}{0.1*\radius}
+    \pgfusepath{fill}
+    \pgfpathcircle{\pgfpointorigin}{\radius}%
+    \foreach\ang in {0,120,240}{
+      \pgftransformrotate{\ang}
+      \pgfpathellipse{\pgfpointorigin} 
+                 {\pgfpoint{0.9*\radius}{0cm}} 
+                 {\pgfpoint{0cm}{0.3*\radius}}
+    }
+  }%
+}
+\makeatother
+
+\begin{document}
+\begin{tikzpicture}[>=latex,thick,black!50,text=black,
+every new ->/.style={shorten >=0pt}, font=\sffamily,
+seqpoint/.style={
+  rectangle,minimum size=4mm,rounded corners=2mm,
+  inner sep=0,
+  thick,draw=black!50,
+  fill=myorange,
+  font=\footnotesize\sffamily
+},
+block/.style={
+  rectangle,minimum width=25mm,
+  minimum height=5.4mm,rounded corners=1mm,
+  thick,draw=black!50,
+  text depth=0,
+  font=\sffamily
+},
+kitten/.style={block, fill=mytan},
+resource/.style={block, fill=mygreen},
+building/.style={block, fill=myyellow},
+trader/.style={block, fill=myblue},
+dot/.style={
+    circle, minimum size=1mm, inner sep=0pt,
+    fill=black
+},    
+atom/.style = {atomshape, minimum size=#1},
+powerin/.style = {electric plug, minimum width=#1, minimum height=#1, draw=black, thick, fill=red},
+powerout/.style = {electric plug, minimum width=#1, minimum height=#1, draw=black, thick, fill=green},
+phantom/.style={inner sep=0,outer sep=0, minimum size=0},
+count/.style={scale=0.5, yshift=-0.8mm, text depth=0},
+rightcount/.style={count, pos=0, above, anchor=south west, xshift=2mm},
+leftcount/.style={count, pos=0, above, anchor=south east, xshift=-2mm},
+lj1leftcount/.style={count, pos=0, above, anchor=south west, xshift=-35mm},
+graphs/every graph/.style={edges=rounded corners}]
+\matrix[column sep=4mm, row sep=1.5mm] { 
+\node (woodcutter)[kitten] {Woodcutter}; & \\
+\node (farmer)[kitten] {Farmer}; \\
+\node (scholar)[kitten] {Scholar}; \\
+\node (hunter)[kitten] {Hunter}; \\
+\node (miner)[kitten] {Miner}; \\
+\node (priest)[kitten] {Priest}; \\
+\node (geologist)[kitten] {Geologist}; \\
+};
+
+\node [resource, xshift=55mm, yshift=315mm](catnip) at (woodcutter) {Catnip};
+\node [resource, xshift=2.5mm, below=1.5mm of catnip](wood) {Wood};
+\node [resource, xshift=2.5mm, below=1.5mm of wood](minerals) {Minerals};
+\node [resource, xshift=2.5mm, below=1.5mm of minerals](coal) {Coal};
+\node [resource, xshift=2.5mm, below=1.5mm of coal](iron) {Iron};
+
+\node [resource, xshift=5mm, below=5mm of iron](titanium) {Titanium};
+\node [resource, xshift=2.5mm, below=1.5mm of titanium](gold) {Gold};
+\node [resource, xshift=2.5mm, below=1.5mm of gold](oil) {Oil};
+\node [resource, xshift=2.5mm, below=1.5mm of oil](uranium) {Uranium};
+\node [resource, xshift=2.5mm, below=1.5mm of uranium](unobtainium) {Unobtainium};
+
+\node [resource, xshift=5mm, below=5mm of unobtainium](catpower) {Catpower};
+\node [resource, xshift=2.5mm, below=1.5mm of catpower](science) {Science};
+\node [atom=4mm, draw=black, very thin, xshift=-3.5mm]() at (science.east){};
+\node [resource, xshift=2.5mm, below=1.5mm of science](culture) {Culture};
+\node [resource, xshift=2.5mm, below=1.5mm of culture](faith) {Faith};
+\node [resource, xshift=2.5mm, below=1.5mm of faith](starchart) {Starchart};
+
+\node [resource](antimatter) at ($(titanium) + (50mm,0)$) {Antimatter};
+\node [resource, xshift=2.5mm, below=1.5mm of antimatter](furs) {Furs};
+\node [resource, xshift=2.5mm, below=1.5mm of furs](ivory) {Ivory};
+\node [resource, xshift=2.5mm, below=1.5mm of ivory](spice) {Spice};
+\node [resource, xshift=2.5mm, below=1.5mm of spice](unicorns) {Unicorns};
+
+\node [resource, xshift=5mm, below=5mm of unicorns](alicorns) {Alicorns};
+\node [resource, xshift=2.5mm, below=1.5mm of alicorns](necrocorns) {Necrocorns};
+\node [resource, xshift=2.5mm, below=1.5mm of necrocorns](tears) {Tears};
+\node [resource, xshift=2.5mm, below=1.5mm of tears](karma) {Karma};
+\node [resource, xshift=2.5mm, below=1.5mm of karma](paragon) {Paragon};
+
+\node [resource](beam) at ($(catnip) + (100mm,0)$) {Beam};
+\node [resource, xshift=2.5mm, below=1.5mm of beam](slab) {Slab};
+\node [resource, xshift=2.5mm, below=1.5mm of slab](concrete) {Concrete};
+\node [resource, xshift=2.5mm, below=1.5mm of concrete](plate) {Plate};
+\node [resource, xshift=2.5mm, below=1.5mm of plate](steel) {Steel};
+
+\node [resource, xshift=5mm, below=5mm of steel](gear) {Gear};
+\node [resource, xshift=2.5mm, below=1.5mm of gear](alloy) {Alloy};
+\node [resource, xshift=2.5mm, below=1.5mm of alloy](eludium) {Eludium};
+\node [resource, xshift=2.5mm, below=1.5mm of eludium](scaffold) {Scaffold};
+\node [resource, xshift=2.5mm, below=1.5mm of scaffold](ship) {Ship};
+
+\node [resource, xshift=5mm, below=5mm of ship](parchment) {Parchment};
+\node [resource, xshift=2.5mm, below=1.5mm of parchment](manuscript) {Manuscript};
+\node [resource, xshift=2.5mm, below=1.5mm of manuscript](compendium) {Compendium};
+\node [resource, xshift=2.5mm, below=1.5mm of compendium](blueprint) {Blueprint};
+
+
+\node [below=10mm of geologist] (resource-baseline){};
+\begin{pgfonlayer}{lines}
+\foreach \n in {catnip, wood, minerals, coal, iron, titanium, gold, oil, uranium, unobtainium, catpower, science, culture, faith, starchart, antimatter, furs, ivory, spice, beam, slab, concrete, plate, steel, gear, alloy, eludium, scaffold, ship, parchment, manuscript, compendium, blueprint}
+{
+	\node [xshift=1.25mm](\n line) at (\n.west) {};
+	\draw[-, thick] (\n) 
+    -| 
+  (resource-baseline -| \n line);
+}
+\end{pgfonlayer}
+%\draw[-, thick] (woodline) -- ++(0,-80mm);
+%\node [resource](wood) at (woodline) {Wood};
+\foreach \k/\r in {
+	woodcutter/wood,
+    farmer/catnip,
+    scholar/science,
+    hunter.8/catpower,
+    hunter/furs,
+    hunter.352/ivory,
+    miner/minerals,
+    priest/faith,
+    geologist.5/coal,
+    geologist.355/gold}
+{
+	\draw[->](\k) -- node[rightcount]{\r} (\k -| 	\r line) node[dot]{};
+}
+
+\draw[->](catnip.east) -- node[rightcount]{100}
+(catnip.east -| wood.5) to [out=0, in=0, distance=0.5cm]  (wood.5);
+\draw[->](wood.355) to [out=0, in=180] node[rightcount]{175} (beam) ;
+\draw[->](minerals) to [out=0, in=180] node[rightcount]{250} (slab) ;
+\draw[->]
+  (slab) -- node[rightcount]{2500} (slab.east -| concrete.east) to [out=0,in=0,distance=0.7cm](concrete)
+  (steel.8) -- node[rightcount]{25} ++(0.2cm,0) to [out=0,in=0,distance=1.2cm]  (concrete);
+\draw[->](iron.5) to [out=0, in=180] node[rightcount]{125} (plate) ;
+\draw[->](iron.355) to [out=0, in=180] node[rightcount]{100} (steel) ;
+\draw[->](coal) to [out=0, in=180] node[rightcount]{100} (steel) ;
+\draw[->](steel) to [out=0, in=0, distance=2cm] node[rightcount]{15} (gear);
+\draw[->](steel.352) to [out=0, in=0, distance=2cm] node[rightcount]{75} (alloy.5);
+\node[phantom](sgmidpoint1) at ($(steel)!0.45!(gear)$){};
+\node[phantom](sgmidpoint2) at ($(steel)!0.55!(gear)$){};
+\draw[->](titanium.east) -- node[rightcount]{10} ++(2mm,0) to [out=0,in=180](sgmidpoint1-|antimatter.north west) -- (sgmidpoint1) -- ++(1cm,0) to [out=0, in=0, distance=1.7cm]  (alloy.5);
+
+\draw[->](unobtainium.east) -- node[rightcount]{1000} ++(4mm,0) to [out=0,in=180]  (sgmidpoint2-|antimatter.north west) -- (sgmidpoint2) -- ++(1cm,0) to [out=0, in=0, distance=2cm]  (eludium);
+\draw[->](alloy.355) -- node[rightcount]{2500}(alloy.355 -| eludium.east) to [out=0,in=0,distance=0.5cm](eludium);
+\draw[->](beam.east) -- node[rightcount]{50} ++(0.5cm,0) to [out=0,in=0,distance=2.5cm]
+ (scaffold.5);
+\draw[->](scaffold.355) -- node[rightcount]{100}
+ (scaffold.355 -| ship.east)
+ to [out=0,in=0,distance=0.5cm]
+ (ship.east);
+\draw[->](plate.east) -- node[rightcount]{150} ++(0.5cm,0) to
+  [out=0,in=0,distance=2.5cm] 
+ (ship.east);
+\draw[->](furs.east) to [out=0,in=180,distance=2.5cm]
+ node[rightcount]{175}
+ (parchment);
+\draw[->](parchment.east) -- node[rightcount]{175}
+ (parchment.east -| manuscript.east)
+ to [out=0,in=0,distance=0.5cm]
+ (manuscript.5);
+\node[phantom](cornsmidpoint1) at ($(unicorns)!0.45!(alicorns)$){};
+\node[phantom](cornsmidpoint2) at ($(unicorns)!0.55!(alicorns)$){};
+\coordinate (tearskarmawest) at ($(tears.west)!0.5!(karma.west)$);
+\draw[->](culture.east) -- node[rightcount]{400} ++(8mm,0) to [out=0, in=180, distance=2cm] (cornsmidpoint2 -| tearskarmawest) --++(1.5cm,0) to [out=0,in=180,distance=1.5cm]
+ (manuscript.west);
+\draw[->](starchart.east) -- node[rightcount]{25} ++(2mm,0) to [out=0, in=180, distance=2.2cm]
+ (cornsmidpoint1 -| tears.west) --++(1.5cm,0) to [out=0,in=180,distance=1.5cm]
+ (ship.west);
+\draw[->](manuscript.355) -- node[rightcount]{50}(manuscript.355 -| compendium.east) to [out=0,in=0,distance=0.5cm] 
+ (compendium.5);
+\draw[<-](compendium.5) to node[leftcount, pos=1]{10K} node[pos=1, atom=4mm, draw=black, anchor=west]{} ++(1cm,0);
+\draw[->](compendium.355) -- node[rightcount]{25}(compendium.355 -| blueprint.east) to [out=0,in=0,distance=0.5cm] 
+ (blueprint.5);
+\draw[<-](blueprint.5) to node[leftcount, pos=1]{25K} node[pos=1, atom=4mm, draw=black, anchor=west]{} ++(1cm,0);
+
+\node[kitten, minimum width=49mm, xshift=-3mm, rotate=90, anchor=south east] at (woodcutter.north west)(kittens) {KITTENS!};
+\foreach \k in {woodcutter, farmer, scholar, hunter, miner, priest, geologist}
+{
+\draw[->](kittens.south |- \k) to (\k);
+}
+
+\node[building, above=7mm of woodcutter](hut) {Hut};
+\node[building, above=1.5mm of hut](loghouse) {Log House};
+\node[building, above=1.5mm of loghouse, minimum height=7mm](mansion) {Mansion};
+
+\foreach \b/\k in {hut/2, loghouse/1, mansion/1}
+{
+  \draw[-o](\b)  to  
+  [out=180,in=90] node[pos=0, count, anchor=south east]{\k}(kittens.east) ;
+}
+
+\draw[build-](hut) -- node[rightcount]{5*2.5 wood}(hut -| woodline) node[dot]{};
+\draw[build-](loghouse.5) -- node[rightcount]{200*1.15 wood}(loghouse.5 -| woodline) node[dot]{};
+\draw[build-](loghouse.355) -- node[rightcount]{250*1.15 minerals}(loghouse.355 -| mineralsline) node[dot]{};
+\draw[build-](mansion.8) -- node[rightcount]{185*1.15 slab}(mansion.8 -| slabline) node[dot]{};
+\draw[build-](mansion) -- node[rightcount]{75*1.15 steel}(mansion -| steelline) node[dot]{};
+\draw[build-](mansion.352) -- node[rightcount]{25*1.15 titanium}(mansion.352 -| titaniumline) node[dot]{};
+
+\node[building, above=5mm of mansion](catnipfield) {Catnip field};
+\draw[build-](catnipfield.5) -- node[rightcount]{10*1.12 catnip} (catnipfield.5  -| catnipline) node[dot]{};
+\draw[->](catnipfield.355) -- node[rightcount]{0.125 catnip} (catnipfield.355  -| catnipline) node[dot]{};
+
+\node[building, above=1.5mm of catnipfield](mine) {Mine};
+\draw[build-](mine.5) -- node[rightcount]{100*1.15 wood} (mine.5  -| woodline) node[dot]{};
+\draw[->](mine.355) -- node[rightcount]{0 coal} (mine.355  -| coalline) node[dot]{};
+
+\node[building, above=1.5mm of mine, minimum height=7mm](quarry) {Quarry};
+\draw[build-](quarry.11) -- node[rightcount]{50*1.15 scaffold} (quarry.10  -| scaffoldline) node[dot]{};
+\draw[build-](quarry.4) -- node[rightcount]{150*1.15 steel} (quarry.4  -| steelline) node[dot]{};
+\draw[build-](quarry.356) -- node[rightcount]{1000*1.15 slab} (quarry.356  -| slabline) node[dot]{};
+\draw[->](quarry.349) -- node[rightcount]{0.015 coal} (quarry.349  -| coalline) node[dot]{};
+
+\node[building, above=1.5mm of quarry, minimum height=21mm](calciner) {Calciner};
+\draw[build-](calciner.36) -- node[rightcount]{120*1.15 steel} (calciner.36 -| steelline) node[dot]{};
+\draw[build-](calciner.30) -- node[rightcount]{15*1.15 titanium} (calciner.30  -| titaniumline) node[dot]{};
+\draw[build-](calciner.23) -- node[rightcount]{5*1.15 blueprint} (calciner.23  -| blueprintline) node[dot]{};
+\draw[build-](calciner.16) -- node[rightcount]{100*1.15 oil} (calciner.16 -| oilline) node[dot]{};
+\draw[<-](calciner.8) -- node[rightcount]{1.5 minerals} (calciner.8 -| mineralsline) node[dot]{};
+\draw[<-](calciner) -- node[rightcount]{0.024 oil} (calciner -| oilline) node[dot]{};
+\draw[->](calciner.352) -- node[rightcount]{0.15 iron} (calciner.352 -| ironline) node[dot]{};
+\draw[->](calciner.344) -- node[rightcount]{0.0005 titanium} (calciner.344 -| titaniumline) node[dot]{};
+\draw[->](calciner.337) -- node[rightcount]{0 iron} (calciner.337 -| ironline) node[dot]{};
+\draw[->](calciner.330) -- node[rightcount]{0 coal} (calciner.330 -| coalline) node[dot]{};
+\draw[->](calciner.324) -- node[rightcount]{0 steel} (calciner.324 -| steelline) node[dot]{};
+\draw[<-](calciner.west) -- node[leftcount]{1} ++(-0.5cm,0) node[powerin=4mm, xscale=-1, anchor=west]{};
+
+\node[building, above=1.5mm of calciner, minimum height=11mm](accelerator){Accelerator};
+\draw[build-](accelerator.15) -- node[rightcount]{7500*1.15 titanium} (accelerator.15 -| titaniumline) node[dot]{};
+\draw[build-](accelerator.8) -- node[rightcount]{125*1.15 concrete} (accelerator.8 -| concreteline) node[dot]{};
+\draw[build-](accelerator) -- node[rightcount]{25*1.15 uranium} (accelerator -| uraniumline) node[dot]{};
+\draw[<-](accelerator.352) -- node[rightcount]{0.015 titanium} (accelerator.352 -| titaniumline) node[dot]{};
+\draw[->](accelerator.345) -- node[rightcount]{0.0025 uranium} (accelerator.345 -| uraniumline) node[dot]{};
+\draw[<-](accelerator.west) to node[leftcount]{2} ++(-0.5cm,0) node[powerin=4mm, anchor=west, xscale=-1]{};
+
+\node[building, above=1.5mm of accelerator, minimum height=14mm](smelter) {Smelter};
+\draw[build-](smelter.21) -- node[rightcount]{200*1.15 minerals} (smelter.21 -| mineralsline) node[dot]{};
+\draw[<-](smelter.15) -- node[rightcount]{0.05 wood} (smelter.15  -| woodline) node[dot]{};
+\draw[<-](smelter.8) -- node[rightcount]{0.1 minerals} (smelter.8  -| mineralsline) node[dot]{};
+\draw[->](smelter) -- node[rightcount]{0.02 iron} (smelter -| ironline) node[dot]{};
+\draw[->](smelter.352) -- node[rightcount]{0 coal} (smelter.352 -| coalline) node[dot]{};
+\draw[->](smelter.345) -- node[rightcount]{0 gold} (smelter.345 -| goldline) node[dot]{};
+\draw[->](smelter.339) -- node[rightcount]{0 titanium} (smelter.339 -| titaniumline) node[dot]{};
+
+
+\node[building, above=1.5mm of smelter, minimum height=8mm](lumbermill) {Lumber Mill};
+\draw[build-](lumbermill.10) -- node[rightcount]{100*1.15 wood}(lumbermill.10 -| woodline) node[dot]{};
+\draw[build-](lumbermill) -- node[rightcount]{50*1.15 iron}(lumbermill -| ironline) node[dot]{};
+\draw[build-](lumbermill.350) -- node[rightcount]{250*1.15 minerals}(lumbermill.350 -| mineralsline) node[dot]{};
+
+
+\node[building, above=1.5mm of lumbermill](workshop){Workshop};
+\draw[build-](workshop.5) -- node[rightcount]{100*1.15 wood} (workshop.5 -| woodline) node[dot]{};
+\draw[build-](workshop.355) -- node[rightcount]{400*1.15 minerals} (workshop.355 -| mineralsline) node[dot]{};
+
+\node[building, above=1.5mm of workshop](library){Library};
+\draw[build-](library.5) -- node[rightcount]{25*1.15 wood} (library.5 -| woodline) node[dot]{};
+\draw[->](library.355) -- node[rightcount]{10\% science bonus} (library.355 -| scienceline) node[dot]{};
+
+\node[building, above=1.5mm of library, minimum height=8mm](academy){Academy};
+\draw[build-](academy.10) -- node[rightcount]{50*1.15 wood} (academy.10 -| woodline) node[dot]{};
+\draw[build-](academy) -- node[rightcount]{70*1.15 minerals} (academy -| mineralsline) node[dot]{};
+\draw[build-](academy.180) -- node[rightcount, pos=1]{100*1.15 science} ++(-2cm,0) node[atom=4mm, draw=black, anchor=east]{};
+\draw[->](academy.350) -- node[rightcount]{20\% science bonus} (academy.350 -| scienceline) node[dot]{};
+
+\node[building, above=1.5mm of academy, minimum height=11mm](observatory){Observatory};
+\draw[build-](observatory.17) -- node[rightcount]{50*1.10 scaffold} (observatory.17 -| scaffoldline) node[dot]{};
+\draw[build-](observatory.10) -- node[rightcount]{35*1.10 slab} (observatory.10 -| slabline) node[dot]{};
+\draw[build-](observatory) -- node[rightcount]{750*1.10 iron} (observatory -| ironline) node[dot]{};
+\draw[build-](observatory.180) -- node[rightcount, pos=1]{1000*1.10 science} ++(-2cm,0) node[atom=4mm, draw=black, anchor=east]{};
+\draw[->](observatory.350) -- node[rightcount]{25\% science bonus} (observatory.350 -| scienceline) node[dot]{};
+\draw[->](observatory.343) -- node[rightcount]{0.2\% chance astronomical event} (observatory.343 -| starchartline) node[dot]{};
+
+
+\node[phantom, yshift=3mm](eastbuildingstop) at 
+(academy.north -| blueprint.south east){};
+
+\node[building, anchor=north west, minimum height=10mm](oilwell) at (eastbuildingstop){Oil Well};
+\draw[build-](oilwell.168) -- node[lj1leftcount]{50*1.15 steel} (oilwell.168 -| steelline) node[dot]{};
+\draw[build-](oilwell.176) -- node[lj1leftcount]{25*1.15 gear} (oilwell.176 -| gearline) node[dot]{};
+\draw[build-](oilwell.184) -- node[lj1leftcount]{25*1.15 scaffold} (oilwell.184 -| scaffoldline) node[dot]{};
+\draw[->](oilwell.192) -- node[lj1leftcount]{0.02 oil} (oilwell.192 -| oilline) node[dot]{};
+\draw[<-](oilwell.east) -- node[rightcount]{1} ++(0.5cm,0) node[powerin=4mm, anchor=west]{};
+
+\node[building, below=1.5mm of oilwell, minimum height=9mm](magneto) {Magneto};
+\draw[build-](magneto.168) -- node[lj1leftcount]{10*1.25 alloy} (magneto.168 -| alloyline) node[dot]{};
+\draw[build-](magneto.176) -- node[lj1leftcount]{5*1.25 gear} (magneto.176 -| gearline) node[dot]{};
+\draw[build-](magneto.184) -- node[lj1leftcount]{1*1.25 blueprint} (magneto.184 -| blueprintline) node[dot]{};
+\draw[<-](magneto.192) -- node[lj1leftcount]{0.05 oil} (magneto.192 -| oilline) node[dot]{};
+\draw[->](magneto.east) to node[rightcount]{5} ++(0.5cm,0) node[powerout=4mm, anchor=west]{};
+
+
+\node[building, below=1.5mm of magneto, minimum height=9mm](steamworks){Steamworks};
+\draw[build-](steamworks.168) -- node[lj1leftcount]{65*1.25 steel} (steamworks.168 -| steelline) node[dot]{};
+\draw[build-](steamworks.176) -- node[lj1leftcount]{20*1.25 gear} (steamworks.176 -| gearline) node[dot]{};
+\draw[build-](steamworks.184) -- node[lj1leftcount]{1*1.25 blueprint} (steamworks.184 -| blueprintline) node[dot]{};
+\draw[->](steamworks.192) -- node[lj1leftcount]{0 manuscript} (steamworks.192 -| manuscriptline) node[dot]{};
+\draw[->](steamworks.east) to node[rightcount]{1} ++(0.5cm,0) node[powerout=4mm, anchor=west]{};
+
+
+
+\node[phantom](westbuildingstop) at (observatory.north){};
+
+\node[building, below=1.5mm of steamworks, minimum height=7mm](factory){Factory};
+\draw[build-](factory.172) -- node[lj1leftcount]{2000*1.15 titanium} (factory.172 -| titaniumline) node[dot]{};
+\draw[build-](factory) -- node[lj1leftcount]{2500*1.15 plate} (factory -| plateline) node[dot]{};
+\draw[build-](factory.188) -- node[lj1leftcount]{15*1.15 concrete} (factory.188 -| concreteline) node[dot]{};
+\draw[<-](factory.east) to node[rightcount]{2} ++(0.5cm,0) node[powerin=4mm, anchor=west]{};
+
+
+\node[building, below=1.5mm of factory, minimum height=11mm](reactor){Reactor};
+\draw[build-](reactor.165) -- node[lj1leftcount]{3500*1.15 titanium} (reactor.165 -| titaniumline) node[dot]{};
+\draw[build-](reactor.172) -- node[lj1leftcount]{5000*1.15 plate} (reactor.172 -| plateline) node[dot]{};
+\draw[build-](reactor.180) -- node[lj1leftcount]{50*1.15 concrete} (reactor.180 -| concreteline) node[dot]{};
+\draw[build-](reactor.188) -- node[lj1leftcount]{25*1.15 blueprint} (reactor.188 -| blueprintline) node[dot]{};
+\draw[<-](reactor.195) -- node[lj1leftcount]{0.001 uranium} (reactor.195 -| uraniumline) node[dot]{};
+\draw[->](reactor.east) to node[rightcount]{10} ++(0.5cm,0) node[powerout=4mm, anchor=west]{};
+
+
+\node[trader, above=8mm of westbuildingstop](dragons){Dragons};
+\draw[<-](dragons.5) -- node[rightcount]{titanium: 250} (dragons.5 -| titaniumline) node[dot]{};
+\draw[->](dragons.355) -- node[rightcount]{uranium: 1/1/1/1} (dragons.355 -| uraniumline) node[dot]{};
+
+\node[trader, above=1.5mm of dragons](spiders){Spiders};
+\draw[<-](spiders.5) -- node[rightcount]{scaffold: 50} (spiders.5 -| scaffoldline) node[dot]{};
+\draw[->](spiders.355) -- node[rightcount]{coal: 350/367.5/402.5/332.5} (spiders.355 -| coalline) node[dot]{};
+
+
+\node[trader, above=1.5mm of spiders, minimum height=10mm](zebras){Zebras};
+\draw[<-](zebras.13) -- node[rightcount]{slab: 50} (zebras.13 -| slabline) node[dot]{};
+\draw[->](zebras.5) -- node[rightcount]{iron: 300/345/270/240} (zebras.5 -| ironline) node[dot]{};
+\draw[->](zebras.355) -- node[rightcount]{plate: 2.1/1.7/2.1/2.5} (zebras.355 -| plateline) node[dot]{};
+\draw[->](zebras.347) -- node[rightcount]{titanium: 1/1/1/1} (zebras.347 -| titaniumline) node[dot]{};
+
+\node[trader, above=1.5mm of zebras](nagas){Nagas};
+\draw[<-](nagas.5) -- node[rightcount]{ivory: 500} (nagas.5 -| ivoryline) node[dot]{};
+\draw[->](nagas.355) -- node[rightcount]{minerals: 1250/1050/650/950} (nagas.355 -| mineralsline) node[dot]{};
+
+\node[trader, above=1.5mm of nagas](griffins){Griffins};
+\draw[<-](griffins.5) -- node[rightcount]{wood: 500} (griffins.5 -| woodline) node[dot]{};
+\draw[->](griffins.355) -- node[rightcount]{iron: 187.5/237.5/337.5/200} (griffins.355 -| ironline) node[dot]{};
+
+\node[trader, above=1.5mm of griffins](sharks){Sharks};
+\draw[<-](sharks.5) -- node[rightcount]{iron: 100} (sharks.5 -| ironline) node[dot]{};
+\draw[->](sharks.355) -- node[rightcount]{catnip: 42000/33250/40250/50750} (sharks.355 -| catnipline) node[dot]{};
+
+\node[trader, above=1.5mm of sharks](lizards){Lizards};
+\draw[<-](lizards.5) -- node[rightcount]{minerals: 1000} (lizards.5 -| mineralsline) node[dot]{};
+\draw[->](lizards.355) -- node[rightcount]{wood: 475/675/575/525} (lizards.355 -| woodline) node[dot]{};
+
+
+\end{tikzpicture}
+\end{document}
