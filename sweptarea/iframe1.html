@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.8.0/d3.min.js"></script>
+<script type='text/javascript'>
+document.addEventListener("DOMContentLoaded", function(event) {
+var docWidth, docHeight;
+function getExtent() {
+  docWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+  docHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+}
+window.addEventListener('resize', function(event){ getExtent(); });
+getExtent();
+var margin = {top: 0, right: 0, bottom: 0, left: 0},
+    width = docWidth - margin.left - margin.right,
+    height = docHeight - margin.top - margin.bottom,
+    size = Math.min(width,height);
+    
+console.log(width,height);
+    
+// add the graph canvas to the body of the webpage
+var svg = d3.select("div#plot1").append("svg")
+    .attr("width", size)
+    .attr("height", size);
+var axis = svg.append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    
+var xsc = d3.scaleLinear()
+          .domain([-2, 2])  // the range of the values to plot
+          .range([ 0, size ]);        // the pixel range of the x-axis
+
+var ysc = d3.scaleLinear()
+          .domain([-2, 2])
+          .range([ size, 0 ]);
+var closedLine = d3.line()
+   .x(function(d){ return xsc(d[0]); })
+   .y(function(d){ return ysc(d[1]); })
+   .curve(d3.curveLinearClosed);
+
+function attrfunc(f,attr) {
+  return function(d) {
+    return f(d[attr]);
+  };
+}
+
+
+function doit(data)
+{
+  var items = axis.selectAll("path.item")
+    .data(data);
+  items.enter()
+      .append("path")
+        .attr("class", "item")
+      .merge(items)
+        .attr("d", attrfunc(closedLine, "xy"))
+        .attr("stroke", "gray")
+        .attr("stroke-width", 1)
+        .attr("stroke-opacity", function(d) { return 1-d.age;})
+        .attr("fill", "gray")
+        .attr("fill-opacity", function(d) {return 1-d.age;});
+  items.exit().remove();
+}
+
+var state = {
+  t: 0,
+  theta: 0,
+  omega: 0.5,
+  A: 1.0,
+  N: 60,
+  history: []
+}
+d3.timer(function(elapsed)
+{
+  var S = state;
+  if (S.history.length > S.N)
+    S.history.shift();
+  var dt = Math.min(0.1, elapsed*1e-3);
+  S.t += dt;
+  S.theta += S.omega * dt;
+  var sample = {
+    t: S.t,
+    x: S.A*(Math.cos(S.theta)+0.1*Math.cos(6*S.theta)),
+    y: S.A*(Math.sin(S.theta)+0.1*Math.sin(6*S.theta))
+  }
+  S.history.push(sample);
+
+  // Create triangular regions
+  var data = [];
+  for (var k = 0; k < S.history.length-1; ++k)
+  {
+     var pt1 = S.history[k];
+     var pt2 = S.history[k+1];
+		 data.push({age: (S.history.length-1-k)/S.N,
+                xy:
+                 [[0,0],
+                  [pt1.x,pt1.y],
+                  [pt2.x,pt2.y]]
+               });
+  }
+  doit(data);
+});
+
+}); // DOMContentLoaded event
+</script>
+<style type='text/css'>
+svg {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+</head><body>
+<div id="plot1">
+</div>
+</body>
+</html>
