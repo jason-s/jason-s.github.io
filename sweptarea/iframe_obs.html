@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src='intersection-observer.js'></script>
+<script type='text/javascript'>
+document.addEventListener("DOMContentLoaded", function(event) {
+  function observeForVisibility(target, thresholds, func)
+  {
+    var callback = function(entries, observer) { 
+      for (var i = 0; i < entries.length; ++i)
+      {
+        if (entries[i].target == target)
+        {
+          func(target, entries[i].intersectionRatio);
+        }
+      }  
+    }  
+    var observer = new IntersectionObserver(callback, 
+       {threshold: thresholds});
+    observer.POLL_INTERVAL = 200;  
+    observer.observe(target);
+  }
+
+  var target = document.getElementById('some_id');
+  observeForVisibility(target, [0], function(target, ratio)
+    { console.log(target, ratio); }); 
+
+});
+
+</script> 
+</head><body>
+<div id='some_id'>
+Ponies!
+</div>
+</body>
+</html>
