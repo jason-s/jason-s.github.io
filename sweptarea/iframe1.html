@@ -4,6 +4,23 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.8.0/d3.min.js"></script>
 <script type='text/javascript'>
 document.addEventListener("DOMContentLoaded", function(event) {
+  function observeForVisibility(target, thresholds, func)
+  {
+    var callback = function(entries, observer) { 
+      for (var i = 0; i < entries.length; ++i)
+      {
+        if (entries[i].target == target)
+        {
+          func(target, entries[i].intersectionRatio);
+        }
+      }  
+    }  
+    var observer = new IntersectionObserver(callback, 
+       {threshold: thresholds});
+    observer.POLL_INTERVAL = 200;  
+    observer.observe(target);
+  }
+
 var docWidth, docHeight;
 function getExtent() {
   docWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
@@ -43,7 +60,7 @@ function attrfunc(f,attr) {
   };
 }
 
-
+function areacolor(d) { return d.area > 0 ? 'green' : 'red'; }
 function doit(data)
 {
   var items = axis.selectAll("path.item")
@@ -53,10 +70,10 @@ function doit(data)
         .attr("class", "item")
       .merge(items)
         .attr("d", attrfunc(closedLine, "xy"))
-        .attr("stroke", "gray")
+        .attr("stroke", areacolor)
         .attr("stroke-width", 1)
         .attr("stroke-opacity", function(d) { return 1-d.age;})
-        .attr("fill", "gray")
+        .attr("fill", areacolor)
         .attr("fill-opacity", function(d) {return 1-d.age;});
   items.exit().remove();
 }
@@ -67,9 +84,67 @@ var state = {
   omega: 0.5,
   A: 1.0,
   N: 60,
-  history: []
+  history: [],
+  origin: [0,0],
+  method: 'xy',
+  alpha: 0.5,
+  running: true
 }
-d3.timer(function(elapsed)
+function setup_method(state)
+{
+  var args = window.location.hash.slice(1).split(";");
+  args.forEach(function(kv) {
+    kv = kv.split('=');
+    if (kv.length != 2)
+      return;
+    var k = kv[0];
+    var v = kv[1];
+    console.log(k,v);
+    switch(k)
+    {
+      case 'origin':
+        {
+          var o = v.split(',');
+          state.origin = [+o[0],+o[1]];
+        }
+        break;
+      case 'method':
+        state.method = v;
+        if (v == 'x')
+          state.alpha = 1;
+        if (v == 'y')
+          state.alpha = 0;
+        if (v == 'xy')
+          state.alpha = 0.5;
+        break;      
+      case 'instancename':
+        state.instancename = v;
+        break;  
+    }
+  })  
+}
+setup_method(state);
+function find_boundary(S, pt1, pt2)
+{
+  switch(S.method)
+  {
+    case 'xy':
+      return  [[S.origin[0],S.origin[1]],
+                  [pt1.x,pt1.y],
+                  [pt2.x,pt2.y]];
+    case 'x':
+      return  [[pt1.x, S.origin[1]],
+               [pt1.x, pt2.y],
+               [pt2.x, pt2.y],
+               [pt2.x, S.origin[1]]]; 
+    case 'y':
+      return  [[S.origin[0], pt1.y],
+               [pt2.x, pt1.y],
+               [pt2.x, pt2.y],
+               [S.origin[0], pt2.y]];
+  }
+}
+function animationfunc(elapsed)
 {
   var S = state;
   if (S.history.length > S.N)
@@ -79,26 +154,48 @@ d3.timer(function(elapsed)
   S.theta += S.omega * dt;
   var sample = {
     t: S.t,
-    x: S.A*(Math.cos(S.theta)+0.1*Math.cos(6*S.theta)),
-    y: S.A*(Math.sin(S.theta)+0.1*Math.sin(6*S.theta))
+    x: S.A*(Math.cos(S.theta)+0*Math.cos(6*S.theta)),
+    y: S.A*(Math.sin(S.theta)+0*Math.sin(6*S.theta))
   }
   S.history.push(sample);
 
-  // Create triangular regions
+  // Create regions
   var data = [];
   for (var k = 0; k < S.history.length-1; ++k)
   {
      var pt1 = S.history[k];
      var pt2 = S.history[k+1];
-		 data.push({age: (S.history.length-1-k)/S.N,
-                xy:
-                 [[0,0],
-                  [pt1.x,pt1.y],
-                  [pt2.x,pt2.y]]
+     var area = S.alpha*(pt2.x-S.origin[0])*(pt2.y-pt1.y) - (1-S.alpha)*(pt2.y-S.origin[1])*(pt2.x-pt1.x);
+     data.push({age: (S.history.length-1-k)/S.N,
+                area: area,
+                xy: find_boundary(S, pt1, pt2)
                });
+     if (area < 0 && S.method != 'xy')
+       console.log(S.instancename,pt1,pt2);          
   }
   doit(data);
-});
+}
+var animationtimer = d3.timer(animationfunc);
+
+observeForVisibility(document.getElementById('plot1'), [0,0.1],
+  function(target, ratio)
+  {
+    var to_run = (ratio > 0);
+    if (to_run == state.running)
+      return;
+    state.running = to_run;
+    if (to_run)  
+    {
+      console.log('restarting animation',state.instancename);
+      animationtimer.restart(animationfunc); 
+    }  
+    else
+    {
+      console.log('stopping animation',state.instancename);
+      animationtimer.stop();
+    }  
+  }
+);
 
 }); // DOMContentLoaded event
 </script>
