@@ -74,21 +74,36 @@ function doit(data)
         .attr("stroke-width", 1)
         .attr("stroke-opacity", function(d) { return 1-d.age;})
         .attr("fill", areacolor)
-        .attr("fill-opacity", function(d) {return 1-d.age;});
+        .attr("fill-opacity", function(d) {return 1-d.age;})
+        ;
   items.exit().remove();
+  var points = axis.selectAll("circle.point")
+    .data(data);
+  points.enter()
+      .append("circle")
+        .attr("class","point")
+        .attr("r", 1.5)
+        .attr("stroke", "none")
+        .attr("fill", "black") 
+      .merge(points)
+        .attr("cx", function(d) { return xsc(d.point.x); })
+        .attr("cy", function(d) { return ysc(d.point.y); })
+        .attr("fill-opacity", function(d) { return 1-d.age;})
+        ;
 }
 
 var state = {
   t: 0,
   theta: 0,
-  omega: 0.5,
+  omega: 2.0,
   A: 1.0,
-  N: 60,
+  N: 40,
   history: [],
   origin: [0,0],
-  method: 'xy',
-  alpha: 0.5,
-  running: true
+  alpha: 0,
+  running: true,
+  lasttick: 0,
+  ticksize: 50
 }
 function setup_method(state)
 {
@@ -108,14 +123,8 @@ function setup_method(state)
           state.origin = [+o[0],+o[1]];
         }
         break;
-      case 'method':
-        state.method = v;
-        if (v == 'x')
-          state.alpha = 1;
-        if (v == 'y')
-          state.alpha = 0;
-        if (v == 'xy')
-          state.alpha = 0.5;
+      case 'alpha':
+        state.alpha = +v;
         break;      
       case 'instancename':
         state.instancename = v;
@@ -124,55 +133,74 @@ function setup_method(state)
   })  
 }
 setup_method(state);
-function find_boundary(S, pt1, pt2)
+function find_boundary(S, P0, P1)
 {
-  switch(S.method)
+  return [[P0.calc.refpoint.x,P0.calc.refpoint.y], 
+          [P0.point.x,P0.point.y],
+          [P1.point.x,P1.point.y],
+          [P1.calc.refpoint.x,P1.calc.refpoint.y]]; 
+}
+function calc_area(p0, p1, p2)
+{
+  var dx1 = p1.x-p0.x;
+  var dy1 = p1.y-p0.y;
+  var dx2 = p2.x-p0.x;
+  var dy2 = p2.y-p0.y;
+  return (dy1*dx2 - dx1*dy2)/2; 
+}
+function calculate_info(S, P0, P1)
+{
+  var result = {};
+  result.refpoint = S.alpha <= 0 
+                  ? {x: S.origin[0],
+                     y: -S.alpha*(P0.point.y-S.origin[1])+S.origin[1]}
+                  : {x: S.alpha*(P0.point.x-S.origin[0])+S.origin[0], 
+                     y: S.origin[1]};
+  if (P1)
   {
-    case 'xy':
-      return  [[S.origin[0],S.origin[1]],
-                  [pt1.x,pt1.y],
-                  [pt2.x,pt2.y]];
-    case 'x':
-      return  [[pt1.x, S.origin[1]],
-               [pt1.x, pt2.y],
-               [pt2.x, pt2.y],
-               [pt2.x, S.origin[1]]]; 
-    case 'y':
-      return  [[S.origin[0], pt1.y],
-               [pt2.x, pt1.y],
-               [pt2.x, pt2.y],
-               [S.origin[0], pt2.y]];
+    result.area = calc_area(P0.point, P1.point, P1.calc.refpoint)
+                + calc_area(P1.calc.refpoint, result.refpoint, P0.point);
   }
+  return result;
 }
 function animationfunc(elapsed)
 {
   var S = state;
+  var dt = (elapsed - S.lasttick)*1e-3;
+  if (dt < S.ticksize*1e-3)
+  {
+    return;
+  }  
+  S.lasttick += S.ticksize;
   if (S.history.length > S.N)
-    S.history.shift();
-  var dt = Math.min(0.1, elapsed*1e-3);
+    S.history.pop();
+  dt = Math.min(0.1, dt);
   S.t += dt;
   S.theta += S.omega * dt;
-  var sample = {
-    t: S.t,
-    x: S.A*(Math.cos(S.theta)+0*Math.cos(6*S.theta)),
-    y: S.A*(Math.sin(S.theta)+0*Math.sin(6*S.theta))
+  var P0 = {
+    point: {
+      t: S.t,
+      x: S.A*(Math.cos(S.theta)+0*Math.cos(6*S.theta)),
+      y: S.A*(Math.sin(S.theta)+0*Math.sin(6*S.theta))
+    }  
   }
-  S.history.push(sample);
+  S.history.unshift(P0);  // prepend array
+  var P1 = (S.history.length) < 2 ? null : S.history[1];
 
+  P0.calc = calculate_info(S, P0, P1);
   // Create regions
   var data = [];
   for (var k = 0; k < S.history.length-1; ++k)
   {
-     var pt1 = S.history[k];
-     var pt2 = S.history[k+1];
-     var area = S.alpha*(pt2.x-S.origin[0])*(pt2.y-pt1.y) - (1-S.alpha)*(pt2.y-S.origin[1])*(pt2.x-pt1.x);
-     data.push({age: (S.history.length-1-k)/S.N,
-                area: area,
-                xy: find_boundary(S, pt1, pt2)
+     var P0 = S.history[k];
+     var P1 = S.history[k+1];  
+     data.push({age: k/S.N,
+                area: P0.calc.area,
+                xy: find_boundary(S, P0, P1),
+                point: {x:P0.point.x, y:P0.point.y}
                });
-     if (area < 0 && S.method != 'xy')
-       console.log(S.instancename,pt1,pt2);          
   }
+
   doit(data);
 }
 var animationtimer = d3.timer(animationfunc);
@@ -187,6 +215,7 @@ observeForVisibility(document.getElementById('plot1'), [0,0.1],
     if (to_run)  
     {
       console.log('restarting animation',state.instancename);
+      state.lasttick = 0;
       animationtimer.restart(animationfunc); 
     }  
     else
