@@ -166,15 +166,26 @@ function calculate_info(S, P0, P1)
 function animationfunc(elapsed)
 {
   var S = state;
-  var dt = (elapsed - S.lasttick)*1e-3;
-  if (dt < S.ticksize*1e-3)
+  var n = Math.floor((elapsed - S.lasttick) / S.ticksize);
+  if (n > 10)
   {
-    return;
+    S.lasttick = elapsed;  
   }  
+  else
+  {
+    while (n-- > 0)
+    {
+      newpoint(S);    
+    }
+  }    
+}  
+
+function newpoint(S)
+{  
   S.lasttick += S.ticksize;
   if (S.history.length > S.N)
     S.history.pop();
-  dt = Math.min(0.1, dt);
+  dt = S.ticksize*1e-3;  
   S.t += dt;
   S.theta += S.omega * dt;
   var P0 = {
@@ -203,6 +214,7 @@ function animationfunc(elapsed)
 
   doit(data);
 }
+
 var animationtimer = d3.timer(animationfunc);
 
 observeForVisibility(document.getElementById('plot1'), [0,0.1],
