@@ -95,22 +95,24 @@ function doit(data)
 var state = {
   t: 0,
   theta: 0,
-  omega: 2.0,
+  omega: 1.0,
+  phi: 0,
   A: 1.0,
-  N: 40,
+  Aran: 0.0,
+  N: 100,
   history: [],
   origin: [0,0],
   alpha: 0,
   running: true,
   lasttick: 0,
-  ticksize: 50
+  ticksize: 20
 }
 function setup_method(state)
 {
   var args = window.location.hash.slice(1).split(";");
   args.forEach(function(kv) {
     kv = kv.split('=');
-    if (kv.length != 2)
+    if (kv.length > 2)
       return;
     var k = kv[0];
     var v = kv[1];
@@ -128,6 +130,10 @@ function setup_method(state)
         break;      
       case 'instancename':
         state.instancename = v;
+        break;  
+      case 'interactive':
+        d3.select('#interactive-container')
+            .attr('class','');
         break;  
     }
   })  
@@ -188,11 +194,14 @@ function newpoint(S)
   dt = S.ticksize*1e-3;  
   S.t += dt;
   S.theta += S.omega * dt;
+  var rxy = boxmuller(); 
   var P0 = {
     point: {
       t: S.t,
-      x: S.A*(Math.cos(S.theta)+0*Math.cos(6*S.theta)),
-      y: S.A*(Math.sin(S.theta)+0*Math.sin(6*S.theta))
+      x: S.A*(Math.cos(S.theta))
+        +S.Aran*rxy[0],
+      y: S.A*(Math.sin(S.theta+Math.PI/180*S.phi))
+        +S.Aran*rxy[1]
     }  
   }
   S.history.unshift(P0);  // prepend array
@@ -238,6 +247,59 @@ observeForVisibility(document.getElementById('plot1'), [0,0.1],
   }
 );
 
+function on_click()
+{
+  if (state.recentering)
+  {
+    var xypx = d3.mouse(this);
+    state.origin = [xsc.invert(xypx[0]), ysc.invert(xypx[1])];
+    state.recentering = false;
+    d3.select('#recenter')
+      .attr('disabled', null)
+      .text('Recenter');
+  }
+} 
+
+function boxmuller() {
+    var u = 1 - Math.random(); // Subtraction to flip [0, 1) to (0, 1].
+    var v = 1 - Math.random();
+    var r = Math.sqrt( -2.0 * Math.log( u ) );
+    var theta = 2.0*Math.PI*v;
+    return [r*Math.cos(theta), r*Math.sin(theta)];
+}
+
+function on_recenter()
+{
+  d3.select('#recenter')
+    .attr('disabled', 1)
+    .text('Recentering');
+  state.recentering = true;
+}
+
+var fmt3=d3.format('.3f');
+var sliders = 'A Aran omega alpha phi'.split(' ');
+function form_changed()
+{
+
+  sliders.forEach(function(field) { 
+    var v = +(d3.select('#slider'+field).node().value);
+    state[field] = v;
+    d3.select('#label'+field).text(fmt3(v));
+  });  
+  console.log(state);
+}
+
+d3.select('#recenter')
+  .on('click', on_recenter);
+d3.select('#plot1')
+  .on('click', on_click);
+
+sliders.forEach(function(field) {
+  d3.select('#slider'+field)
+  .on('change', form_changed);  
+});  
+form_changed();
+
 }); // DOMContentLoaded event
 </script>
 <style type='text/css'>
@@ -246,9 +308,34 @@ svg {
   margin-left: auto;
   margin-right: auto;
 }
+.hidden {
+  display: none;
+}  
 </style>
 </head><body>
 <div id="plot1">
 </div>
+<div id='interactive-container' class='hidden'>
+<form id='interactive-controls'>
+<button type='button' id='recenter'>Recenter</button> <br />
+
+<label for='sliderA'>A</label>
+<input type="range" id='sliderA' min="0" max="1.10" value="1.0" step="0.01" /> <span id='labelA'></span><br />
+
+<label for='sliderAran'>A<sub>ran</sub></label>
+<input type="range" id='sliderAran' min="0" max="0.2" value="0" step="0.001" /> <span id='labelAran'></span><br />
+
+<label for='slideromega'>&omega;</label>
+<input type="range" id='slideromega' min="0" max="10.0" value="1.0" step="0.01" ></input>
+<span id='labelomega'></span><br />
+
+<label for='alpha'>&alpha;</label>
+<input type="range" id='slideralpha' min="-1" max="1" value="0" step="0.01" ></input>
+<span id='labelalpha'></span><br />
+
+<label for='phi'>&phi;</label>
+<input type="range" id='sliderphi' min="-30" max="30" value="0" step="0.1" ></input>
+<span id='labelphi'></span><br />
+</form></div>
 </body>
 </html>
