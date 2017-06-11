@@ -21,16 +21,25 @@ document.addEventListener("DOMContentLoaded", function(event) {
     observer.observe(target);
   }
 
-var docWidth, docHeight;
+var docWidth, docHeight, plot2Width, plot2Height=180;
+function getPlot2Extent() {
+  function getwidth(x) { return d3.select(x).node().getBoundingClientRect().width; } 
+  plot2Width = getwidth('#bottom-panel') - getwidth('#interactive-container') - 20;
+}  
 function getExtent() {
   docWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
   docHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
 }
-window.addEventListener('resize', function(event){ getExtent(); });
+window.addEventListener('resize', function(event){ getExtent(); getPlot2Extent();});
+
 getExtent();
-var margin = {top: 0, right: 0, bottom: 0, left: 0},
+form_setup(d3.select('form#interactive-controls'));
+getPlot2Extent();
+
+var margin = {top: 0, right: 0, bottom: 20, left: 0},
+    margin2 = {top: 5, right: 0, bottom: 5, left: 30},
     width = docWidth - margin.left - margin.right,
-    height = docHeight - margin.top - margin.bottom,
+    height = docHeight - plot2Height - margin.top - margin.bottom,
     size = Math.min(width,height);
     
 console.log(width,height);
@@ -39,8 +48,45 @@ console.log(width,height);
 var svg = d3.select("div#plot1").append("svg")
     .attr("width", size)
     .attr("height", size);
+var svg2 = d3.select("div#plot2").append("svg")
+    .attr('width',plot2Width)
+    .attr("height", plot2Height);
+    
 var axis = svg.append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+var alg = {
+  axis:  svg2.append("g")
+    .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")"),
+  xsc: d3.scaleLinear().domain([0,1]).range([0, plot2Width]),
+  ysc: d3.scaleLinear().domain([0,1]).range([plot2Height,0]) 
+  
+  };   
+(function(alg){  
+  // put alg.info in later
+  alg.axis.append("path");
+  alg.line = d3.line()
+    .x(function(d,i) { return alg.xsc(i/alg.info.maxlen); })
+    .y(function(d,i) { return alg.ysc(d); });
+  alg.axis_drawn = d3.axisLeft( alg.ysc );
+  alg.axis.call(alg.axis_drawn);
+  alg.drawGridLines = function()
+  {
+    alg.axis.selectAll("line.horizontalGrid").data(alg.ysc.ticks( )).enter()
+      .append("line")
+        .attr('class','horizontalGrid')
+        .attr('x1',margin2.right)
+        .attr('x2',plot2Width)
+        .attr('y1',alg.ysc)
+        .attr('y2',alg.ysc)
+        .attr('fill','none')
+        .attr( "shape-rendering" , "crispEdges")
+        .attr( "stroke" , "black")
+        .attr("stroke-width" , "1px")
+        .attr('opacity','0.2')
+        ;
+  }      
+  alg.drawGridLines();
+})(alg);    
     
 var xsc = d3.scaleLinear()
           .domain([-2, 2])  // the range of the values to plot
@@ -91,6 +137,14 @@ function doit(data)
         .attr("fill-opacity", function(d) { return 1-d.age;})
         ;
 }
+function algdoit(S_alg)
+{
+  var path = alg.axis.selectAll("path");
+  path.datum(S_alg.history)
+    .attr("fill","none")
+    .attr("stroke","steelblue")
+    .attr("d", alg.line);
+}
 
 var state = {
   t: 0,
@@ -105,8 +159,15 @@ var state = {
   alpha: 0,
   running: true,
   lasttick: 0,
-  ticksize: 20
+  ticksize: 20,
+  interactive: false,
+  alg: {
+    history: [0],
+    maxlen: 400
+  }  
 }
+alg.info = state.alg;
+
 function setup_method(state)
 {
   var args = window.location.hash.slice(1).split(";");
@@ -132,6 +193,7 @@ function setup_method(state)
         state.instancename = v;
         break;  
       case 'interactive':
+        state.interactive = true;
         d3.select('#interactive-container')
             .attr('class','');
         break;  
@@ -208,6 +270,18 @@ function newpoint(S)
   var P1 = (S.history.length) < 2 ? null : S.history[1];
 
   P0.calc = calculate_info(S, P0, P1);
+  if (P0.calc.area != null)
+  {
+    if (S.alg.history.length >= S.alg.maxlen)
+    {
+      S.alg.history = [0]; 
+    }  
+    var A = S.alg.history.slice(-1)[0];   
+    var Anext = A + P0.calc.area; 
+ 
+    S.alg.history.push(Anext);
+  }  
+
   // Create regions
   var data = [];
   for (var k = 0; k < S.history.length-1; ++k)
@@ -222,6 +296,7 @@ function newpoint(S)
   }
 
   doit(data);
+  algdoit(S.alg);
 }
 
 var animationtimer = d3.timer(animationfunc);
@@ -277,17 +352,52 @@ function on_recenter()
 }
 
 var fmt3=d3.format('.3f');
-var sliders = 'A Aran omega alpha phi'.split(' ');
+var sliders;
 function form_changed()
 {
-
+  state.alg.history=[0];
   sliders.forEach(function(field) { 
-    var v = +(d3.select('#slider'+field).node().value);
-    state[field] = v;
-    d3.select('#label'+field).text(fmt3(v));
+    var v = +(d3.select('#slider'+field.name).node().value);
+    state[field.name] = v;
+    d3.select('#label'+field.name).text(fmt3(v));
   });  
+  var maxt = state.ticksize * 1e-3 * state.alg.maxlen;
+  var dyR = 2*state.Aran*maxt*0.5;
+  var dy = state.A*state.A*state.omega*maxt*0.5;
+  var yrange = [-dyR, dy+dyR];
+  console.log(yrange);
+  alg.ysc.domain(yrange);
+  alg.axis.call(alg.axis_drawn);
   console.log(state);
 }
+function form_setup(form)
+{
+   sliders = [
+     {name:'A', label:'A',min:0, max:1.1, nom:1.0, step:0.01},
+     {name:'Aran',label:'A<sub>ran</sub>', min:0,max:0.2,nom:0,step:0.001},
+     {name:'omega',label:'&omega;',min:0,max:5.0,nom:1.0,step:0.01},
+     {name:'alpha',label:'&alpha;',min:-1,max:1,nom:0,step:0.01},
+     {name:'phi',label:'&phi;',min:-30,max:30,nom:0,step:0.1}
+   ];
+  var table = form.append('table');
+  sliders.forEach(function(field) {
+    var row = table.append('tr');
+    row.append('td').append('label')
+      .html(field.label)
+      .attr('for','slider'+field.name);
+    row.append('td').append('input')
+      .attr('type','range')
+      .attr('id','slider'+field.name)
+      .attr('min',field.min)
+      .attr('max',field.max)
+      .attr('value',field.nom)
+      .attr('step',field.step);
+    row.append('td').append('span')
+      .attr('id','label'+field.name)
+      .text(d3.format('.3f')(field.nom));    
+  }); 
+}
+
 
 d3.select('#recenter')
   .on('click', on_recenter);
@@ -295,7 +405,7 @@ d3.select('#plot1')
   .on('click', on_click);
 
 sliders.forEach(function(field) {
-  d3.select('#slider'+field)
+  d3.select('#slider'+field.name)
   .on('change', form_changed);  
 });  
 form_changed();
@@ -308,34 +418,45 @@ svg {
   margin-left: auto;
   margin-right: auto;
 }
+.grid line {
+  stroke: lightgrey;
+  stroke-opacity: 0.7;
+  shape-rendering: crispEdges;
+}
+
+.grid path {
+  stroke-width: 0;
+}
 .hidden {
   display: none;
 }  
+div#interactive-container {
+  vertical-align: top;
+  display: inline-block;
+  position: relative;
+  left: 0;
+}
+form#interactive-controls {
+  border: 1px solid black;
+  display: inline-block;
+}
+div#plot2 {
+  display: inline-block;
+  position: relative;
+  left: 0;
+}
 </style>
 </head><body>
 <div id="plot1">
 </div>
+<div id='bottom-panel'>
 <div id='interactive-container' class='hidden'>
 <form id='interactive-controls'>
 <button type='button' id='recenter'>Recenter</button> <br />
-
-<label for='sliderA'>A</label>
-<input type="range" id='sliderA' min="0" max="1.10" value="1.0" step="0.01" /> <span id='labelA'></span><br />
-
-<label for='sliderAran'>A<sub>ran</sub></label>
-<input type="range" id='sliderAran' min="0" max="0.2" value="0" step="0.001" /> <span id='labelAran'></span><br />
-
-<label for='slideromega'>&omega;</label>
-<input type="range" id='slideromega' min="0" max="10.0" value="1.0" step="0.01" ></input>
-<span id='labelomega'></span><br />
-
-<label for='alpha'>&alpha;</label>
-<input type="range" id='slideralpha' min="-1" max="1" value="0" step="0.01" ></input>
-<span id='labelalpha'></span><br />
-
-<label for='phi'>&phi;</label>
-<input type="range" id='sliderphi' min="-30" max="30" value="0" step="0.1" ></input>
-<span id='labelphi'></span><br />
-</form></div>
+</form>
+</div>
+<div id="plot2">
+</div>
+</div>
 </body>
 </html>
