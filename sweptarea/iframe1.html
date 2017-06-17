@@ -168,11 +168,11 @@ var state = {
   alpha: 0,
   running: true,
   lasttick: 0,
-  ticksize: 10,
+  ticksize: 40,
   interactive: false,
   alg: {
     history: [0],
-    maxlen: 400
+    maxlen: 200
   }
 }
 alg.info = state.alg;
@@ -181,7 +181,7 @@ function setup_method(state)
 {
   var argstring = window.location.hash.slice(1);
   if (argstring == '')
-    argstring='interactive;instancename=interactive';
+    argstring='interactive;instancename=interactive;ticksize=10;maxlen=400';
   var args = argstring.split(";");
   args.forEach(function(kv) {
     kv = kv.split('=');
@@ -199,7 +199,8 @@ function setup_method(state)
         }
         break;
       case 'alpha':
-        state.alpha = +v;
+      case 'ticksize':
+        state[k] = +v;
         break;
       case 'instancename':
         state.instancename = v;
@@ -210,6 +211,9 @@ function setup_method(state)
             .classed('hidden',false);
         resizePlot2();   
         break;
+      case 'maxlen':
+        state.alg.maxlen = Math.max(100,Math.min(400,+v));
+        break;   
     }
   })
 }
@@ -301,7 +305,7 @@ function newpoint(S)
   {
      var P0 = S.history[k];
      var P1 = S.history[k+1];
-     data.push({age: k/S.N*Math.max(S.omega*0.1,1),
+     data.push({age: k/S.N*Math.max(S.omega*0.1,1) * (S.ticksize/10),
                 area: P0.calc.area,
                 xy: find_boundary(S, P0, P1),
                 point: {x:P0.point.x, y:P0.point.y}
