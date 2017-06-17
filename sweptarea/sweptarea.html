@@ -96,11 +96,11 @@ var alg = {
 })(alg);
 
 var xsc = d3.scaleLinear()
-          .domain([-2, 2])  // the range of the values to plot
+          .domain([-1.5, 1.5])  // the range of the values to plot
           .range([ 0, size ]);        // the pixel range of the x-axis
 
 var ysc = d3.scaleLinear()
-          .domain([-2, 2])
+          .domain([-1.5, 1.5])
           .range([ size, 0 ]);
 var closedLine = d3.line()
    .x(function(d){ return xsc(d[0]); })
