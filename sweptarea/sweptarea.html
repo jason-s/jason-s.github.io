@@ -158,7 +158,7 @@ function algdoit(S_alg)
 var state = {
   t: 0,
   theta: 0,
-  omega: 1.0,
+  omega: 2.0,
   phi: 0,
   A: 1.0,
   Aran: 0.0,
@@ -176,6 +176,8 @@ var state = {
   }
 }
 alg.info = state.alg;
+
+function limit(x,a,b) { return x<a?a:(x>b?b:x); }
 
 function setup_method(state)
 {
@@ -199,8 +201,10 @@ function setup_method(state)
         }
         break;
       case 'alpha':
+        state[k] = limit(+v,-1,1);
+        break;
       case 'ticksize':
-        state[k] = +v;
+        state[k] = limit(+v,10,100);
         break;
       case 'instancename':
         state.instancename = v;
@@ -212,10 +216,12 @@ function setup_method(state)
         resizePlot2();   
         break;
       case 'maxlen':
-        state.alg.maxlen = Math.max(100,Math.min(400,+v));
+        state.alg.maxlen = limit(+v,100,400);
         break;   
     }
+    
   })
+  form_init(state);
 }
 setup_method(state);
 function find_boundary(S, P0, P1)
@@ -383,7 +389,7 @@ function on_recenter()
 
 var fmt3=d3.format('.3f');
 var sliders;
-function form_changed()
+function form_changed(state)
 {
   sliders.forEach(function(field) {
     var v = +(d3.select('#slider'+field.name).node().value);
@@ -392,8 +398,15 @@ function form_changed()
   });
   parameters_changed();
 }
+function form_init(state)
+{
+  sliders.forEach(function(field) {
+    d3.select('#slider'+field.name).property('value',state[field.name]);
+  });
+}
 function form_setup(form)
 {
+  console.log('haha',state);
    sliders = [
      {name:'A', label:'A',min:0, max:1.1, nom:1.0, step:0.01},
      {name:'Aran',label:'A<sub>ran</sub>', min:0,max:0.2,nom:0,step:0.001},
@@ -412,7 +425,6 @@ function form_setup(form)
       .attr('id','slider'+field.name)
       .attr('min',field.min)
       .attr('max',field.max)
-      .attr('value',field.nom)
       .attr('step',field.step);
     row.append('td').append('span')
       .attr('id','label'+field.name)
@@ -428,9 +440,9 @@ d3.select('#plot1 svg')
 
 sliders.forEach(function(field) {
   d3.select('#slider'+field.name)
-  .on('change', form_changed);
+  .on('change', function() { form_changed(state) });
 });
-form_changed();
+form_changed(state);
 
 }); // DOMContentLoaded event
 </script>
