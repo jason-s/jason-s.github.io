@@ -6,26 +6,26 @@
 document.addEventListener("DOMContentLoaded", function(event) {
   function observeForVisibility(target, thresholds, func)
   {
-    var callback = function(entries, observer) { 
+    var callback = function(entries, observer) {
       for (var i = 0; i < entries.length; ++i)
       {
         if (entries[i].target == target)
         {
           func(target, entries[i].intersectionRatio);
         }
-      }  
-    }  
-    var observer = new IntersectionObserver(callback, 
+      }
+    }
+    var observer = new IntersectionObserver(callback,
        {threshold: thresholds});
-    observer.POLL_INTERVAL = 200;  
+    observer.POLL_INTERVAL = 200;
     observer.observe(target);
   }
 
 var docWidth, docHeight, plot2Width, plot2Height=180;
 function getPlot2Extent() {
-  function getwidth(x) { return d3.select(x).node().getBoundingClientRect().width; } 
+  function getwidth(x) { return d3.select(x).node().getBoundingClientRect().width; }
   plot2Width = getwidth('#bottom-panel') - getwidth('#interactive-container') - 20;
-}  
+}
 function getExtent() {
   docWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
   docHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
@@ -37,13 +37,11 @@ form_setup(d3.select('form#interactive-controls'));
 getPlot2Extent();
 
 var margin = {top: 0, right: 0, bottom: 20, left: 0},
-    margin2 = {top: 5, right: 0, bottom: 5, left: 30},
+    margin2 = {top: 5, right: 0, bottom: 10, left: 30},
     width = docWidth - margin.left - margin.right,
     height = docHeight - plot2Height - margin.top - margin.bottom,
     size = Math.min(width,height);
-    
-console.log(width,height);
-    
+
 // add the graph canvas to the body of the webpage
 var svg = d3.select("div#plot1").append("svg")
     .attr("width", size)
@@ -51,43 +49,45 @@ var svg = d3.select("div#plot1").append("svg")
 var svg2 = d3.select("div#plot2").append("svg")
     .attr('width',plot2Width)
     .attr("height", plot2Height);
-    
+
 var axis = svg.append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 var alg = {
   axis:  svg2.append("g")
     .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")"),
   xsc: d3.scaleLinear().domain([0,1]).range([0, plot2Width]),
-  ysc: d3.scaleLinear().domain([0,1]).range([plot2Height,0]) 
-  
-  };   
-(function(alg){  
+  ysc: d3.scaleLinear().domain([0,1]).range([plot2Height-margin2.bottom,margin2.top])
+
+  };
+(function(alg){
   // put alg.info in later
   alg.axis.append("path");
   alg.line = d3.line()
     .x(function(d,i) { return alg.xsc(i/alg.info.maxlen); })
     .y(function(d,i) { return alg.ysc(d); });
-  alg.axis_drawn = d3.axisLeft( alg.ysc );
-  alg.axis.call(alg.axis_drawn);
-  alg.drawGridLines = function()
+  alg.axis_left = d3.axisLeft( alg.ysc );
+  alg.drawAxis = function(axis)
   {
-    alg.axis.selectAll("line.horizontalGrid").data(alg.ysc.ticks( )).enter()
+     axis.call(alg.axis_left);
+     var grid=axis.selectAll("line.horizontalGrid").data(alg.ysc.ticks( ));
+     grid.enter()
       .append("line")
         .attr('class','horizontalGrid')
         .attr('x1',margin2.right)
         .attr('x2',plot2Width)
-        .attr('y1',alg.ysc)
-        .attr('y2',alg.ysc)
         .attr('fill','none')
         .attr( "shape-rendering" , "crispEdges")
         .attr( "stroke" , "black")
         .attr("stroke-width" , "1px")
         .attr('opacity','0.2')
-        ;
-  }      
-  alg.drawGridLines();
-})(alg);    
-    
+      .merge(grid)
+        .attr('y1',alg.ysc)
+        .attr('y2',alg.ysc);
+     grid.exit().remove();
+  };
+  alg.axis.call(alg.drawAxis);
+})(alg);
+
 var xsc = d3.scaleLinear()
           .domain([-2, 2])  // the range of the values to plot
           .range([ 0, size ]);        // the pixel range of the x-axis
@@ -130,7 +130,7 @@ function doit(data)
         .attr("class","point")
         .attr("r", 1.5)
         .attr("stroke", "none")
-        .attr("fill", "black") 
+        .attr("fill", "black")
       .merge(points)
         .attr("cx", function(d) { return xsc(d.point.x); })
         .attr("cy", function(d) { return ysc(d.point.y); })
@@ -143,6 +143,7 @@ function algdoit(S_alg)
   path.datum(S_alg.history)
     .attr("fill","none")
     .attr("stroke","steelblue")
+    .attr("stroke-width",0.75)
     .attr("d", alg.line);
 }
 
@@ -164,7 +165,7 @@ var state = {
   alg: {
     history: [0],
     maxlen: 400
-  }  
+  }
 }
 alg.info = state.alg;
 
@@ -188,25 +189,25 @@ function setup_method(state)
         break;
       case 'alpha':
         state.alpha = +v;
-        break;      
+        break;
       case 'instancename':
         state.instancename = v;
-        break;  
+        break;
       case 'interactive':
         state.interactive = true;
         d3.select('#interactive-container')
             .attr('class','');
-        break;  
+        break;
     }
-  })  
+  })
 }
 setup_method(state);
 function find_boundary(S, P0, P1)
 {
-  return [[P0.calc.refpoint.x,P0.calc.refpoint.y], 
+  return [[P0.calc.refpoint.x,P0.calc.refpoint.y],
           [P0.point.x,P0.point.y],
           [P1.point.x,P1.point.y],
-          [P1.calc.refpoint.x,P1.calc.refpoint.y]]; 
+          [P1.calc.refpoint.x,P1.calc.refpoint.y]];
 }
 function calc_area(p0, p1, p2)
 {
@@ -214,15 +215,15 @@ function calc_area(p0, p1, p2)
   var dy1 = p1.y-p0.y;
   var dx2 = p2.x-p0.x;
   var dy2 = p2.y-p0.y;
-  return (dy1*dx2 - dx1*dy2)/2; 
+  return (dy1*dx2 - dx1*dy2)/2;
 }
 function calculate_info(S, P0, P1)
 {
   var result = {};
-  result.refpoint = S.alpha <= 0 
+  result.refpoint = S.alpha <= 0
                   ? {x: S.origin[0],
                      y: -S.alpha*(P0.point.y-S.origin[1])+S.origin[1]}
-                  : {x: S.alpha*(P0.point.x-S.origin[0])+S.origin[0], 
+                  : {x: S.alpha*(P0.point.x-S.origin[0])+S.origin[0],
                      y: S.origin[1]};
   if (P1)
   {
@@ -237,26 +238,26 @@ function animationfunc(elapsed)
   var n = Math.floor((elapsed - S.lasttick) / S.ticksize);
   if (n > 10)
   {
-    S.lasttick = elapsed;  
-  }  
+    S.lasttick = elapsed;
+  }
   else
   {
     while (n-- > 0)
     {
-      newpoint(S);    
+      newpoint(S);
     }
-  }    
-}  
+  }
+}
 
 function newpoint(S)
-{  
+{
   S.lasttick += S.ticksize;
   if (S.history.length > S.N)
     S.history.pop();
-  dt = S.ticksize*1e-3;  
+  dt = S.ticksize*1e-3;
   S.t += dt;
   S.theta += S.omega * dt;
-  var rxy = boxmuller(); 
+  var rxy = boxmuller();
   var P0 = {
     point: {
       t: S.t,
@@ -264,7 +265,7 @@ function newpoint(S)
         +S.Aran*rxy[0],
       y: S.A*(Math.sin(S.theta+Math.PI/180*S.phi))
         +S.Aran*rxy[1]
-    }  
+    }
   }
   S.history.unshift(P0);  // prepend array
   var P1 = (S.history.length) < 2 ? null : S.history[1];
@@ -274,20 +275,20 @@ function newpoint(S)
   {
     if (S.alg.history.length >= S.alg.maxlen)
     {
-      S.alg.history = [0]; 
-    }  
-    var A = S.alg.history.slice(-1)[0];   
-    var Anext = A + P0.calc.area; 
- 
+      S.alg.history = [0];
+    }
+    var A = S.alg.history.slice(-1)[0];
+    var Anext = A + P0.calc.area;
+
     S.alg.history.push(Anext);
-  }  
+  }
 
   // Create regions
   var data = [];
   for (var k = 0; k < S.history.length-1; ++k)
   {
      var P0 = S.history[k];
-     var P1 = S.history[k+1];  
+     var P1 = S.history[k+1];
      data.push({age: k/S.N,
                 area: P0.calc.area,
                 xy: find_boundary(S, P0, P1),
@@ -308,20 +309,32 @@ observeForVisibility(document.getElementById('plot1'), [0,0.1],
     if (to_run == state.running)
       return;
     state.running = to_run;
-    if (to_run)  
+    if (to_run)
     {
       console.log('restarting animation',state.instancename);
       state.lasttick = 0;
-      animationtimer.restart(animationfunc); 
-    }  
+      animationtimer.restart(animationfunc);
+    }
     else
     {
       console.log('stopping animation',state.instancename);
       animationtimer.stop();
-    }  
+    }
   }
 );
 
+function parameters_changed()
+{
+  state.alg.history=[0];
+  var maxt = state.ticksize * 1e-3 * state.alg.maxlen;
+  var dyR = 2*state.Aran*maxt*0.5;
+  var dy_linear = state.A*state.A*state.omega*maxt*0.5;
+  var dy_periodic = state.A*Math.hypot(state.origin[0],state.origin[1]);
+  var yrange = [-dyR-dy_periodic, dy_linear+dy_periodic+dyR];
+  alg.ysc.domain(yrange);
+  alg.axis.call(alg.drawAxis);
+  console.log('state:',state);
+}
 function on_click()
 {
   if (state.recentering)
@@ -332,8 +345,9 @@ function on_click()
     d3.select('#recenter')
       .attr('disabled', null)
       .text('Recenter');
+    parameters_changed();
   }
-} 
+}
 
 function boxmuller() {
     var u = 1 - Math.random(); // Subtraction to flip [0, 1) to (0, 1].
@@ -355,27 +369,19 @@ var fmt3=d3.format('.3f');
 var sliders;
 function form_changed()
 {
-  state.alg.history=[0];
-  sliders.forEach(function(field) { 
+  sliders.forEach(function(field) {
     var v = +(d3.select('#slider'+field.name).node().value);
     state[field.name] = v;
     d3.select('#label'+field.name).text(fmt3(v));
-  });  
-  var maxt = state.ticksize * 1e-3 * state.alg.maxlen;
-  var dyR = 2*state.Aran*maxt*0.5;
-  var dy = state.A*state.A*state.omega*maxt*0.5;
-  var yrange = [-dyR, dy+dyR];
-  console.log(yrange);
-  alg.ysc.domain(yrange);
-  alg.axis.call(alg.axis_drawn);
-  console.log(state);
+  });
+  parameters_changed();
 }
 function form_setup(form)
 {
    sliders = [
      {name:'A', label:'A',min:0, max:1.1, nom:1.0, step:0.01},
      {name:'Aran',label:'A<sub>ran</sub>', min:0,max:0.2,nom:0,step:0.001},
-     {name:'omega',label:'&omega;',min:0,max:5.0,nom:1.0,step:0.01},
+     {name:'omega',label:'&omega;',min:0,max:25.0,nom:2.0,step:0.02},
      {name:'alpha',label:'&alpha;',min:-1,max:1,nom:0,step:0.01},
      {name:'phi',label:'&phi;',min:-30,max:30,nom:0,step:0.1}
    ];
@@ -394,20 +400,20 @@ function form_setup(form)
       .attr('step',field.step);
     row.append('td').append('span')
       .attr('id','label'+field.name)
-      .text(d3.format('.3f')(field.nom));    
-  }); 
+      .text(d3.format('.3f')(field.nom));
+  });
 }
 
 
 d3.select('#recenter')
   .on('click', on_recenter);
-d3.select('#plot1')
+d3.select('#plot1 svg')
   .on('click', on_click);
 
 sliders.forEach(function(field) {
   d3.select('#slider'+field.name)
-  .on('change', form_changed);  
-});  
+  .on('change', form_changed);
+});
 form_changed();
 
 }); // DOMContentLoaded event
@@ -429,7 +435,7 @@ svg {
 }
 .hidden {
   display: none;
-}  
+}
 div#interactive-container {
   vertical-align: top;
   display: inline-block;
