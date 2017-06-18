@@ -6,7 +6,7 @@
 document.addEventListener("DOMContentLoaded", function(event) {
 
 
-var margin = {top: 20, right: 20, bottom: 30, left: 30},
+var margin = {top: 0, right: 0, bottom: 0, left: 0},
     width = 400,
     height = 400;
     
@@ -40,7 +40,7 @@ defs.append("marker")
 var axis = svg.append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-var R0 = 1.3;
+var R0 = 1.35;
 var  xsc= d3.scaleLinear().domain([-R0,R0]).range([0, width-margin.left-margin.right]),
   ysc= d3.scaleLinear().domain([-R0,R0]).range([height-margin.top-margin.bottom,0]); 
   
@@ -99,9 +99,9 @@ function drawGraph(t,init)
        .attr("class","trajectory")
        .attr("d",  line);
        
-      var xy1 = [-0.97*R0,0];
-      var xy2 = [0.97*R0,0]; 
-      var xytext = [R0,0];
+      var xy1 = [-0.92*R0,0];
+      var xy2 = [0.92*R0,0]; 
+      var xytext = [0.94*R0,0];
       for (var i = 0; i < 2; ++i)
       {  
         
