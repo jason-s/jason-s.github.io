@@ -122,15 +122,15 @@ function drawGraph(t,init)
         ;
        axis.append("text")
         .attr("class","axislabel")
-        .call(setxy,i==0?0:P.Bx,i==1?-0.1:P.By)
+        .call(setxy,i==0?P.Bx:0,i==0?-0.1:P.By)
         .html("B<tspan baseline-shift='sub'>"+"xy"[i]+"</tspan>")
-        .attr("text-anchor",i==0?"end":"middle")
+        .attr("text-anchor",i==0?"middle":"end")
         ;
        axis.append("text")
         .attr("class","axislabel")
-        .call(setxy,i==0?P.Bx:P.Bx+P.Ax/2,i==1?P.By:P.By+P.Ay/2)
+        .call(setxy,i==0?P.Bx+P.Ax/2:P.Bx,i==0?P.By:P.By+P.Ay/2)
         .html("A<tspan baseline-shift='sub'>"+"xy"[i]+"</tspan>")
-        .attr("text-anchor",i==0?"start":"middle")
+        .attr("text-anchor",i==0?"middle":"start")
         ;
         
       } 
