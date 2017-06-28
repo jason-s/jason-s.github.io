@@ -1,0 +1,37 @@
+<?xml version="1.0" standalone="no"?>
+
+<?xml-stylesheet type="text/css" href="lfsr.css"?>
+<svg version="1.1"
+     baseProfile="full"
+     xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     xmlns:ev="http://www.w3.org/2001/xml-events"
+     width="250" height="100">
+<defs><marker id="arrow-off" viewBox="0 -5 5 10" refX="8" refY="0" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,-3L8,0L0,3" class="arrowhead-off"></path></marker><marker id="arrow-on" viewBox="0 -5 5 10" refX="8" refY="0" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,-3L8,0L0,3" class="arrowhead-on"></path></marker></defs>
+<g id="shift_register" transform="translate(50,10)">
+<rect x="0" y="0" class="cell" width="25" height="25"></rect>
+<rect x="25" y="0" class="cell" width="25" height="25"></rect>
+<rect x="50" y="0" class="cell" width="25" height="25"></rect>
+<rect x="75" y="0" class="cell" width="25" height="25"></rect>
+<rect x="100" y="0" class="cell" width="25" height="25"></rect>
+
+<text class="cell-label" x="12.5" y="12.5"><tspan class='math it'>S<tspan class="rm sub">4</tspan></tspan></text>
+<text class="cell-label" x="37.5" y="12.5"><tspan class='math it'>S<tspan class="rm sub">3</tspan></tspan></text>
+<text class="cell-label" x="62.5" y="12.5"><tspan class='math it'>S<tspan class="rm sub">2</tspan></tspan></text>
+<text class="cell-label" x="87.5" y="12.5"><tspan class='math it'>S<tspan class="rm sub">1</tspan></tspan></text>
+<text class="cell-label" x="112.5" y="12.5"><tspan class='math it'>S<tspan class="rm sub">0</tspan></tspan></text>
+
+<text class="cell-label" x="150" y="12.5"> <tspan class='math'>0</tspan></text>
+<text class="cell-label" x="-37.5" y="12.5"><tspan class='math it'>y</tspan></text>
+<g class="lfsr-taps off">
+<path class="arrow" d="M0, 12.5l-25,0"></path>
+<path class="arrow" d="M137.5, 12.5l-12.5,0"></path>
+<path class="arrow" d="M-12.5, 12.5l0,25l125,0l0,-12.5">
+</path>
+<path class="arrow" d="M62.5,37.5l0,-12.5"></path>
+<circle class="tap" cx="62.5" cy="37.5"></circle>
+<circle class="tap" cx="-12.5" cy="12.5"></circle>
+</g>
+
+
+</g></svg>

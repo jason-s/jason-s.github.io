@@ -1,0 +1,73 @@
+
+.hidden { 
+    display: none;
+}
+form {
+    font-family: "Open Sans", sans-serif;
+}
+#ticktock {
+    position: absolute;
+    top: 550px;
+    left: 400px;
+}
+svg rect.cell {
+    fill: none;
+    stroke: steelblue;
+}
+  
+svg text.lfsr-state {
+    alignment-baseline: middle;
+    font-family: "Open Sans", sans-serif;
+    font-size: 100%;
+}
+svg text.cell-label {
+    text-anchor: middle;
+    alignment-baseline: middle;
+    font-family: "Open Sans", sans-serif;
+    font-size: 120%;
+    font-weight: bold;
+} 
+svg text tspan.math {
+    font-family: serif;
+    font-weight: normal;
+    font-size: 80%;
+}  
+svg text tspan.math.it {
+    font-style: italic;
+}  
+svg text tspan.math tspan.rm {
+    font-style: normal;
+} 
+svg text tspan.math tspan.sub {
+    baseline-shift: sub;
+    font-size: 80%;
+} 
+svg .lfsr-taps path {
+    stroke-width: 2;
+    fill: none;
+    stroke: steelblue;
+}    
+svg .lfsr-taps path.arrow {    
+    marker-end: url(#arrow-off);
+}
+svg .lfsr-taps.on path {
+    stroke: red;
+}
+svg .lfsr-taps.on path.arrow {    
+    marker-end: url(#arrow-on);
+}
+svg .lfsr-taps circle.tap {
+    fill: steelblue;
+    r: 2.5;
+}
+svg .lfsr-taps.on circle.tap {
+    fill: red;
+}
+svg .arrowhead-off {
+    fill: steelblue;
+    stroke: none;
+}
+svg .arrowhead-on {
+    fill: red;
+    stroke: none;
+}
