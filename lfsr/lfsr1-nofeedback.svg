@@ -6,7 +6,7 @@
      xmlns="http://www.w3.org/2000/svg"
      xmlns:xlink="http://www.w3.org/1999/xlink"
      xmlns:ev="http://www.w3.org/2001/xml-events"
-     width="250" height="100">
+     width="250" height="45">
 <defs><marker id="arrow-off" viewBox="0 -5 5 10" refX="8" refY="0" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,-3L8,0L0,3" class="arrowhead-off"></path></marker><marker id="arrow-on" viewBox="0 -5 5 10" refX="8" refY="0" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,-3L8,0L0,3" class="arrowhead-on"></path></marker></defs>
 <g id="shift_register" transform="translate(50,10)">
 <rect x="0" y="0" class="cell" width="25" height="25"></rect>
