@@ -1,0 +1,451 @@
+  <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Open+Sans" />
+    <link href="//fonts.googleapis.com/css?family=Droid+Sans+Mono" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.9.1/d3.min.js"></script>
+    <style type='text/css'>
+      .hidden { 
+        display: none;
+      }
+      form {
+        font-family: "Open Sans", sans-serif;
+      }
+      #ticktock {
+        position: absolute;
+        top: 550px;
+        left: 400px;
+      }
+      svg rect.cell {
+        fill: none;
+        stroke: steelblue;
+      }
+      svg text.lfsr-state {
+        alignment-baseline: middle;
+        font-family: "Open Sans", sans-serif;
+        font-size: 100%;
+      }
+      svg text.cell-label {
+        text-anchor: middle;
+        alignment-baseline: middle;
+        font-family: "Open Sans", sans-serif;
+        font-size: 120%;
+        font-weight: bold;
+      } 
+      svg .lfsr-taps path {
+        stroke-width: 2;
+        fill: none;
+        stroke: steelblue;
+        marker-end: url(#arrow-off);
+      }
+      svg .lfsr-taps.on path {
+        stroke: red;
+        marker-end: url(#arrow-on);
+      }
+      svg .lfsr-taps circle.tap {
+        fill: steelblue;
+        r: 2.5;
+      }
+      svg .lfsr-taps.on circle.tap {
+        fill: red;
+      }
+      svg .arrowhead-off {
+        fill: steelblue;
+        stroke: none;
+      }
+      svg .arrowhead-on {
+        fill: red;
+        stroke: none;
+      }
+
+    </style>
+    <script type='text/javascript'>
+    document.addEventListener('DOMContentLoaded',function(event) {
+      function getExtent() {
+        var width = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+        var height = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+        return [width,height];
+      }
+      var docHeight = getExtent()[1];
+      var options_list = window.location.hash.slice(1).split(';');
+      var options = {};
+      options_list.forEach(function(x)
+      {
+         var kv = x.split('=',2);                          options[kv[0]] = kv[1];
+      });
+      console.log(options);
+        var L = 25;
+        var maxFacetCount = Math.floor((docHeight-50)/L - 0.5);
+    	var state = {
+    		nexttick: 0,
+    		ticksize: 500,
+    		n: -8,
+    		wheel: [],
+        bits: [],
+    		nfacet: maxFacetCount,
+    		init: true,
+        lfsr: {
+           poly: parseInt(options['poly'],16) || 0x23,
+           state: 0x1,
+           n: 0,
+           nout: 0
+        },
+        ticktock: true
+    	};
+      for (var k = state.lfsr.poly; k > 1; k >>= 1)
+         ++state.lfsr.n;
+      function lfsr_prev(lfsr)
+      {
+        if (lfsr.state & 1)
+        {
+          lfsr.state = (lfsr.state ^ lfsr.poly);
+        }
+        lfsr.state >>= 1;
+        return lfsr.state;
+      }
+    	function lfsr_next(lfsr)
+      {
+        y = lfsr.state << 1;
+        if (y >> lfsr.n)
+        {
+          y ^= lfsr.poly;
+          lfsr.flip = true;
+        }
+        else
+        {
+          lfsr.flip = false;
+        }
+        lfsr.state = y;
+        return y;
+      }
+    	function update_state(state)
+    	{
+        if (state.ticktock)
+        {
+          if (state.wheel.length >= state.nfacet)
+            state.wheel.shift();
+          state.wheel.push({n: ++state.n, lfsr: lfsr_next(state.lfsr)});
+          if (state.bits.length >= state.lfsr.n + state.lfsr.nout)
+            state.bits.shift();
+          state.bits.push({n: state.n, b: 0});         }
+        else
+        {
+          var x = state.lfsr.state;
+          for (var i = 0; i < state.lfsr.n; ++i)
+          {
+            var k = state.bits.length-1-i;
+            var b = state.bits[k] ? state.bits[k].b : 0;
+            state.bits[k] = {n: state.n-i, b: x & 1,
+                            flip: b != (x&1)};
+            x >>= 1;
+          }
+        }
+    	}
+      for (var i = 0; i < state.lfsr.n; ++i) 
+      {
+        lfsr_prev(state.lfsr); 
+      }
+      state.ticktock = true; 
+    	for (var i = 0; i < state.lfsr.n; ++i)
+      {
+        state.ticktock = !state.ticktock;
+    		update_state(state);
+        state.ticktock = !state.ticktock;
+    		update_state(state);
+      }
+      state.bits = state.bits.slice(-state.lfsr.n);
+      state.wheel = state.wheel.slice(-1);
+
+    	function apply_attr(e, a)
+      {
+        for (var k in a)
+          e.attr(k,a[k]);
+        return e;
+      }
+    	function prepare_view(state)
+    	{
+    		var width = 60 + (state.lfsr.n+0.5)*(L+2);
+    		var height = 5 + (state.nfacet+0.5)*L;
+    		var svg = d3.select("#wheel-container").append("svg")
+    			.attr("width", width)
+    			.attr("height", height);
+        var defs = svg.append("defs");
+        for (var k = 0; k < 2; ++k)
+        apply_attr(defs.append("marker"),
+            {
+              "id":"arrow-"+(k?'on':'off'),
+              "viewBox":"0 -5 5 10",
+              "refX":8,
+              "refY":0,
+              "markerWidth":4,
+              "markerHeight":4,
+              "orient":"auto"
+            })
+            .append("path")
+              .attr("d", "M0,-3L8,0L0,3")
+              .attr("class","arrowhead-"+(k?'on':'off'));
+        var x1 = L*0.5+5;
+    		var wheel = svg.append('g')
+    			.attr('id','wheel')
+          .attr('transform','translate('+x1+',0)');
+        var shiftreg = svg.append('g')
+          .attr('id','shift_register')
+          .attr('transform','translate('+x1+',0)');
+        for (var i = 0; i < state.lfsr.n; ++i)
+        {
+            shiftreg.append('rect')
+        						.attr('x',i*L)
+                    .attr('y',(state.nfacet-1)*L)
+                    .attr('class','cell')
+                    .attr('width',L)
+                    .attr('height',L);
+        }
+        shiftreg.append('text')
+              .attr('class', 'lfsr-state')
+              .attr('x',state.lfsr.n*L+L/2)
+              .attr('y',(state.nfacet-0.5)*L)
+              .attr('fill','black')
+              .attr('stroke', 'none');
+        
+        var line = d3.line()
+                          .x(function(d) { return d[0]*L; })
+                          .y(function(d) { return d[1]*L; })
+                          .curve(d3.curveLinear);
+        var taps = svg.append("g")
+            .attr('class','lfsr-taps off')
+            .attr('transform','translate('+x1+','+(L*state.nfacet)+')');
+
+        var nlast = state.lfsr.n;
+        var ifirst = 0
+        for (ifirst = 0; ifirst < nlast; ++ifirst)
+        {
+          if ((state.lfsr.poly >> ifirst) & 1)
+            break;
+        }
+        nlast -= ifirst;
+        var tapdata = [
+          [0,-1.5],
+          [-0.5,-1.5],
+          [-0.5,0.5],
+          [0,0.5],
+          [nlast-1,0.5],
+          [nlast-0.5,0.5],
+          [nlast-0.5,0]
+        ]
+        taps.append("path")
+            .datum(tapdata)
+            .attr("d", line)
+        for (var i = ifirst+1; i < state.lfsr.n; ++i)
+        {
+          if ((state.lfsr.poly >> i) & 1)
+          {
+            var x = state.lfsr.n - i - 0.5;
+            if (i != ifirst)
+            {
+              taps.append("path")
+                .datum([[x,0.5],[x,0]])
+                .attr("d", line);
+            }
+            taps.append("circle")
+              .attr("class","tap")
+              .attr("cx",x*L)
+              .attr("cy",0.5*L);
+          }
+        }
+    	}
+    	
+    	prepare_view(state);
+
+      
+      function report_change(label)
+    	{
+    		return function(sel) {
+    			// console.log(label);
+    			// sel.each(function(d,i) { console.log(d,i); });
+    		}
+    	}
+      function format_lfsr_state(x)
+      {
+				return '0x'+("000000"+x.toString(16)).slice(-(Math.ceil(state.lfsr.n/4)));
+      }
+    	function facet_enter(facets, t)
+    	{
+    		var facet = facets.append('g');
+        facet.append('text')
+          .attr('class', 'lfsr-state')
+          .attr('x',state.lfsr.n*L+L/2)
+          .attr('y',L/2)
+          .text(function(d) { return format_lfsr_state(d.lfsr); });
+        for (var i = 0; i < state.lfsr.n; ++i)
+        {
+            
+    		   facet.append('text')
+    		      .attr('class','cell-label')
+    		      .attr('x',L/2 + i*L)
+    		      .attr('y',L/2)
+              .attr('opacity',0)
+              .attr('fill',function(d) { return ((d.lfsr >> (state.lfsr.n-i-1))&1)?"red":"black"})
+    		      .text(function(d) { return (d.lfsr >> (state.lfsr.n-i-1)) & 1 });
+    		   facet.append('rect')
+    		      .attr('x',i*L)
+    		      .attr('y',0)
+    		      .attr('width',L)
+    		      .attr('height',L)
+              .attr('class','cell');
+        }
+    		facet_move(facet, state.init ? null : t);
+    	}
+    	
+    	function facet_move(facet, t)
+    	{			
+    		(t ? facet.transition(t) : facet)
+           .call(function(f){f.selectAll("text").attr("opacity",1);})
+           .attr('opacity',function(d,i) { 
+          		var age = state.n - d.n;
+              return age == 0 ? 0 : 1-age/state.nfacet; })
+    		   .attr('transform',function(d,i) { return 'translate(0,'+((d.n-state.n+state.nfacet-1)*L)+')'; });
+    	}
+    	
+    	function facet_update(facets, t)
+    	{
+    		facet_move(facets, t);
+    	}
+      function bits_set_content(bits)
+      {
+        bits.select('text')
+              .text(function(d,i) { return d.b; })
+              .attr('fill',function(d,i) { return d.b?"red":"black";})
+              .attr('transform','')
+      }
+    	function bits_enter(shiftreg, t)
+      {
+        var bits = shiftreg.append('g');
+        bits.attr('class',function(d,i) { return 'hey-'+d.b+'-'+d.n});
+        bits.append('text')
+        		  .attr('class','cell-label')
+        			.attr('x',L/2)
+              .attr('y',0)
+              .attr('opacity',0)
+            .transition(t)
+              .attr('opacity',1);
+        bits.call(bits_set_content);
+        bits_move(bits,null,0)
+        bits_move(bits,t);
+      }
+      function bits_move(bits,t,ofs) {
+        ofs = ofs || 0;
+        (t ? bits.transition(t) : bits)
+           .attr('transform',function(d,i) {
+          return 'translate(' + (ofs+d.n - state.n +state.lfsr.n-1)*L+','+(L*(state.nfacet-0.5))+')';
+        });
+      }
+      function bits_update(bits, t)
+      {
+        bits_move(bits,t);
+      }
+      function bits_join(srcells, state)
+      {
+        return srcells.data(state.bits, function(d,i) { return d.n; });
+      }
+    	function update_view(state, ticktock)
+    	{
+        var shiftreg = d3.select("#shift_register");
+        var srcells = shiftreg.selectAll('g');
+    		var wheel = d3.select("#wheel");
+    		var facets = wheel.selectAll('g');
+
+        if (state.ticktock)
+        {
+    		  var t = d3.transition().duration(300);
+    		  var upd = facets
+      		  .data(state.wheel, function(d,i) { return d.n; });
+    		  
+    		  upd.call(report_change("UPDATE"))
+    		      .call(facet_update, t)
+    		   .enter()
+    			  .call(report_change("ENTER"))
+    			  .call(facet_enter, t)
+    		   .merge(facets)
+    			  .call(report_change("MERGE"))
+    		  upd.exit()
+    			  .call(report_change("EXIT"))
+    			  .transition(t)
+            .call(function(f) { f.selectAll("text").attr("opacity",0); })
+            .attr('transform','translate (0,'+(-L)+')')
+    			  .remove();
+          
+          var upd = bits_join(srcells, state);
+          upd.call(bits_update, t)
+            .enter()
+             .call(bits_enter, t)
+            .merge(srcells)
+             .call(report_change("SR MERGE"));
+          upd.exit()
+            .transition(t)
+            .call(function(f) { f.selectAll("text").attr("opacity",0); })
+   //         .attr('transform','translate ('+(-L*state.lfsr.nout)+','+(L*(state.nfacet-0.5))+')')
+            .remove();
+           
+          shiftreg.select('text.lfsr-state')
+            .transition(t)
+            .transition()
+            .text(format_lfsr_state(state.lfsr.state));
+    	  }
+        else
+        {
+          // tock
+          var t = d3.transition().duration(100);
+          var t2 = t.transition().duration(100);
+
+          var upd = facets
+      		  .data(state.wheel, function(d,i) { return d.n; });
+    		  
+    		  upd.call(report_change("UPDATE"))
+    		      .call(facet_update, t)
+    		   .enter()
+    			  .call(facet_enter, t);
+       
+          var upd = bits_join(srcells, state);
+          upd
+            .transition(t)
+            .transition(t2)
+          	.call(bits_set_content);
+           upd.enter()
+             .call(bits_enter, t)
+
+          if (state.lfsr.flip)
+          d3.select('.lfsr-taps')
+            .transition(t)
+            .attr('class','lfsr-taps on')
+            .transition(t2)
+            .attr('class','lfsr-taps off');
+          ;
+        }
+      }
+    	var tmr = d3.timer(function(elapsed) {
+    		var do_something = false;
+    		while (elapsed >= state.nexttick)
+    		{
+    			do_something = true;
+    			state.nexttick += state.ticksize;
+    		}
+    		if (do_something && !(d3.select('#pause').property('checked') && !state.ticktock))
+    		{
+          state.ticktock = !state.ticktock;
+          d3.select('#ticktock').text(state.ticktock ? 'TICK' : 'TOCK');
+      	  update_state(state);
+    			update_view(state);
+    			state.init = false;
+    		}
+    	}, 200);
+    });
+    </script>
+    </head>
+    <body>
+      <div id='wheel-container' ></div>
+    <form class="">
+      <input type="checkbox" id="pause" name="pause">pause</input>
+    </form>
+    <div id='ticktock' class='hidden'></div>
+    </body>
+    </html>
