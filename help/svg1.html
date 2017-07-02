@@ -15,6 +15,7 @@
       svg rect.cell {
         fill: none;
         stroke: steelblue;
+        shape-rendering: crispEdges; 
       }
  
     </style>
@@ -22,12 +23,12 @@
     document.addEventListener('DOMContentLoaded',function(event) {
  
         var L = 25;
-        var maxFacetCount = 8;
+        var maxFacetCount = 4;
     	var state = {
     		nexttick: 0,
-    		ticksize: 500,
+    		ticksize: 1000,
     		n: -8,
-    		nx: 8,
+    		nx: 2,
     		wheel: [],
             nfacet: maxFacetCount,
     		init: true,
@@ -57,7 +58,7 @@
     			.attr("width", width)
     			.attr("height", height);
         
-             var x1 = L*0.5+5;
+             var x1 = Math.floor(L*0.5+5);
     		var wheel = svg.append('g')
     			.attr('id','wheel')
                 .attr('transform','translate('+x1+',0)');
@@ -84,9 +85,7 @@
     	function facet_move(facet, t)
     	{			
     		(t ? facet.transition(t) : facet)
-           .attr('opacity',function(d,i) { 
-          		var age = state.n - d.n;
-              return age == 0 ? 0 : 1-age/state.nfacet; })
+          
     		   .attr('transform',function(d,i) { return 'translate(0,'+((d.n-state.n+state.nfacet-1)*L)+')'; });
     	}
     	
@@ -103,7 +102,7 @@
 
         if (state.ticktock)
         {
-    		  var t = d3.transition().duration(300);
+    		  var t = d3.transition().duration(500);
     		  var upd = facets
       		  .data(state.wheel, function(d,i) { return d.n; });
     		  
@@ -121,8 +120,8 @@
         else
         {
           // tock
-          var t = d3.transition().duration(100);
-          var t2 = t.transition().duration(100);
+          var t = d3.transition().duration(0);
+          
 
           var upd = facets
       		  .data(state.wheel, function(d,i) { return d.n; });

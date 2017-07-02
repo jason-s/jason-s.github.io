@@ -21,13 +21,13 @@
         stroke: steelblue;
       }
       svg text.lfsr-state {
-        alignment-baseline: middle;
+        dominant-baseline: middle;
         font-family: "Open Sans", sans-serif;
         font-size: 100%;
       }
       svg text.cell-label {
         text-anchor: middle;
-        alignment-baseline: middle;
+        dominant-baseline: middle;
         font-family: "Open Sans", sans-serif;
         font-size: 120%;
         font-weight: bold;
@@ -44,7 +44,6 @@
       }
       svg .lfsr-taps circle.tap {
         fill: steelblue;
-        r: 2.5;
       }
       svg .lfsr-taps.on circle.tap {
         fill: red;
@@ -184,7 +183,7 @@
             .append("path")
               .attr("d", "M0,-3L8,0L0,3")
               .attr("class","arrowhead-"+(k?'on':'off'));
-        var x1 = L*0.5+5;
+        var x1 = Math.round(L*0.5+5);
     		var wheel = svg.append('g')
     			.attr('id','wheel')
           .attr('transform','translate('+x1+',0)');
@@ -249,7 +248,8 @@
             taps.append("circle")
               .attr("class","tap")
               .attr("cx",x*L)
-              .attr("cy",0.5*L);
+              .attr("cy",0.5*L)
+              .attr("r",2.5);
           }
         }
     	}
