@@ -71,9 +71,7 @@
  
             for (var i = 0; i < state.nx; ++i)
             {
-            
-                
-                   facet.append('rect')
+                facet.append('rect')
                       .attr('x',i*L)
                       .attr('y',0)
                       .attr('width',L)
@@ -118,8 +116,7 @@
     			  .transition(t)
                      .attr('transform','translate (0,'+(-L)+')')
     			     .remove();
-          
-           
+ 
     	  }
         else
         {
@@ -143,7 +140,7 @@
     			do_something = true;
     			state.nexttick += state.ticksize;
     		}
-    		if (do_something && !(d3.select('#pause').property('checked') && !state.ticktock))
+    		if (do_something && !(d3.select('#pause').property('checked') ))
     		{
           state.ticktock = !state.ticktock;
            
@@ -151,7 +148,7 @@
     			update_view(state);
     			state.init = false;
     		}
-    	}, 200);
+    	} );
     });
     </script>
     </head>
