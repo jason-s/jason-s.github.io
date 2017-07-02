@@ -1,16 +1,12 @@
   <!DOCTYPE html>
     <html>
     <head>
-    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Open+Sans" />
-    <link href="//fonts.googleapis.com/css?family=Droid+Sans+Mono" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.9.1/d3.min.js"></script>
     <style type='text/css'>
       .hidden { 
         display: none;
       }
-      form {
-        font-family: "Open Sans", sans-serif;
-      }
+       
       #ticktock {
         position: absolute;
         top: 550px;
@@ -33,11 +29,9 @@
     		n: -8,
     		nx: 8,
     		wheel: [],
-        bits: [],
-    		nfacet: maxFacetCount,
+            nfacet: maxFacetCount,
     		init: true,
-         
-        ticktock: true
+            ticktock: true
     	};
     
        
@@ -54,13 +48,7 @@
     	}
   
       state.wheel = state.wheel.slice(-1);
-
-    	function apply_attr(e, a)
-      {
-        for (var k in a)
-          e.attr(k,a[k]);
-        return e;
-      }
+ 
     	function prepare_view(state)
     	{
     		var width = 60 + (state.nx+0.5)*(L+2);
@@ -68,64 +56,36 @@
     		var svg = d3.select("#wheel-container").append("svg")
     			.attr("width", width)
     			.attr("height", height);
-        var defs = svg.append("defs");
-        for (var k = 0; k < 2; ++k)
-        apply_attr(defs.append("marker"),
-            {
-              "id":"arrow-"+(k?'on':'off'),
-              "viewBox":"0 -5 5 10",
-              "refX":8,
-              "refY":0,
-              "markerWidth":4,
-              "markerHeight":4,
-              "orient":"auto"
-            })
-            .append("path")
-              .attr("d", "M0,-3L8,0L0,3")
-              .attr("class","arrowhead-"+(k?'on':'off'));
-        var x1 = L*0.5+5;
+        
+             var x1 = L*0.5+5;
     		var wheel = svg.append('g')
     			.attr('id','wheel')
-          .attr('transform','translate('+x1+',0)');
-         
-        
-         
-         
+                .attr('transform','translate('+x1+',0)');
+ 
     	}
     	
     	prepare_view(state);
-
-      
-      function report_change(label)
-    	{
-    		return function(sel) {
-    			// console.log(label);
-    			// sel.each(function(d,i) { console.log(d,i); });
-    		}
-    	}
-       
-    	function facet_enter(facets, t)
+     	function facet_enter(facets, t)
     	{
     		var facet = facets.append('g');
  
-        for (var i = 0; i < state.nx; ++i)
-        {
+            for (var i = 0; i < state.nx; ++i)
+            {
             
-    		    
-    		   facet.append('rect')
-    		      .attr('x',i*L)
-    		      .attr('y',0)
-    		      .attr('width',L)
-    		      .attr('height',L)
-              .attr('class','cell');
-        }
+                
+                   facet.append('rect')
+                      .attr('x',i*L)
+                      .attr('y',0)
+                      .attr('width',L)
+                      .attr('height',L)
+                  .attr('class','cell');
+            }
     		facet_move(facet, state.init ? null : t);
     	}
     	
     	function facet_move(facet, t)
     	{			
     		(t ? facet.transition(t) : facet)
-           .call(function(f){f.selectAll("text").attr("opacity",1);})
            .attr('opacity',function(d,i) { 
           		var age = state.n - d.n;
               return age == 0 ? 0 : 1-age/state.nfacet; })
@@ -149,19 +109,15 @@
     		  var upd = facets
       		  .data(state.wheel, function(d,i) { return d.n; });
     		  
-    		  upd.call(report_change("UPDATE"))
-    		      .call(facet_update, t)
+    		  upd .call(facet_update, t)
     		   .enter()
-    			  .call(report_change("ENTER"))
+    			   
     			  .call(facet_enter, t)
-    		   .merge(facets)
-    			  .call(report_change("MERGE"))
+ 
     		  upd.exit()
-    			  .call(report_change("EXIT"))
     			  .transition(t)
-             
-            .attr('transform','translate (0,'+(-L)+')')
-    			  .remove();
+                     .attr('transform','translate (0,'+(-L)+')')
+    			     .remove();
           
            
     	  }
@@ -174,12 +130,10 @@
           var upd = facets
       		  .data(state.wheel, function(d,i) { return d.n; });
     		  
-    		  upd.call(report_change("UPDATE"))
-    		      .call(facet_update, t)
+    		  upd.call(facet_update, t)
     		   .enter()
     			  .call(facet_enter, t);
-       
-           
+ 
         }
       }
     	var tmr = d3.timer(function(elapsed) {
