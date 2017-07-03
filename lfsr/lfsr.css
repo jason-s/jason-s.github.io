@@ -16,13 +16,13 @@ svg rect.cell {
 }
   
 svg text.lfsr-state {
-    alignment-baseline: middle;
+    dominant-baseline: middle;
     font-family: "Open Sans", sans-serif;
     font-size: 100%;
 }
 svg text.cell-label {
     text-anchor: middle;
-    alignment-baseline: middle;
+    dominant-baseline: middle;
     font-family: "Open Sans", sans-serif;
     font-size: 120%;
     font-weight: bold;
