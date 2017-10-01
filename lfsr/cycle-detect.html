@@ -116,6 +116,8 @@
         move(state.tortoise_snail_snapshot_id, 'tortoise_snapshot', false);
         move(state.hare_id, 'hare_snapshot', false);
         move(state.tortoise_hare_snapshot_id, 'tortoise_snapshot', false);
+        document.getElementById('snail:found').textContent='';
+        document.getElementById('hare:found').textContent='';
       }
       if (state.found_hare && state.found_snail)
       {
@@ -216,6 +218,10 @@
          options[kv[0]] = kv[1];
       });
       console.log(options);
+      if (options.embed)
+      {
+         document.body.setAttribute("style","margin: 0");
+      }
       
       var state = { Nhead: 11, Ncycle: 74, d:24, tick:0, 
                     init:true,
