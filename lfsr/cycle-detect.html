@@ -19,12 +19,39 @@
       svg rect, svg path {
         shape-rendering: geometricPrecision;   
       }
-      svg rect.cell, svg path.cell {
+      svg .cell {
         fill: none;
         stroke: steelblue;
       }
-       
-
+      svg .cell.tortoise, svg .cell.tortoise_snapshot {
+        fill: steelblue;
+      }
+      svg .cell.hare, svg .cell.hare_snapshot {
+        fill: orange;
+      }   
+      svg .cell.snail, svg .cell.snail_snapshot {
+        fill: purple;
+      }      
+      svg text {
+        font-family: "Open Sans", sans-serif;
+      }
+      svg text.textright {
+        text-anchor: end; 
+      }
+      svg .cell.hare_snapshot, 
+      svg .cell.tortoise_snapshot,
+      svg .cell.snail_snapshot {
+        fill-opacity: 0.4;
+      }
+      button#restart {
+        position: absolute;
+        right: 20px;
+        bottom: 20px;
+      } 
+      div#svg-container {
+        position: relative;
+        display: inline-block;
+      }
     </style>
     <script type='text/javascript'>
     function attr(element, attrs)
@@ -45,6 +72,141 @@
     {
       return Array.prototype.slice.call(arguments).join(" "); 
     }
+    function move(id, classname, addclass)
+    {
+      if (id)
+      {
+        var shape = document.getElementById(id);
+        var  names = shape.getAttribute('class').split(' ');
+        if (addclass)
+        {
+           names.push(classname); 
+        } 
+        else
+        {
+          for (var i = 0; i < names.length; ++i)
+          {
+            if (names[i] == classname)
+              names[i] = ''; 
+          }
+        }
+        shape.setAttribute('class',  names.join(' '));
+      }
+    }  
+    function getid(state, k)
+    {
+      return k < state.Ntotal ? k : (k-state.Nhead)%(state.Ntotal-state.Nhead)+state.Nhead;
+    } 
+    function onTick(state)
+    {
+      var N = 2;
+      var phase = state.tick % N;
+      
+      if (state.init)
+      {
+        state.snail = 0;
+        state.tortoise = 0;
+        state.hare = 0;
+        state.found_snail = false;
+        state.found_hare = false; 
+        move('cell:0:0','snail', true);
+        move('cell:1:0','hare', true);
+        move('cell:2:0','tortoise', true);  
+        move(state.snail_id, 'snail_snapshot', false);
+        move(state.tortoise_snail_snapshot_id, 'tortoise_snapshot', false);
+        move(state.hare_id, 'hare_snapshot', false);
+        move(state.tortoise_hare_snapshot_id, 'tortoise_snapshot', false);
+      }
+      if (state.found_hare && state.found_snail)
+      {
+        move(state.hare_id, 'hare',false); 
+        move(state.snail_id, 'snail',false); 
+        move(state.tortoise_id, 'tortoise',false);
+        return;
+      }
+
+      
+      switch (phase)
+      {
+        case 1:
+          move(state.snail_id, 'snail',false); 
+          if ((state.tortoise & (state.tortoise-1)) == 0)
+          {
+            state.snail = state.tortoise;
+          }
+          if (!state.found_snail)
+          {
+            state.snail_id = 'cell:0:'+getid(state, state.snail); 
+            move(state.snail_id, 'snail',true); 
+          }  
+        
+          move(state.tortoise_id, 'tortoise', false);
+          if (!state.init)
+            ++state.tortoise;  
+          state.tortoise_id = 'cell:2:'+getid(state, state.tortoise);  
+          move(state.tortoise_id, 'tortoise', true);
+          
+          move(state.hare_id, 'hare',false);
+          if (!state.found_hare)
+          {
+            if (!state.init) 
+              ++state.hare; 
+           
+            state.hare_id = 'cell:1:'+getid(state, state.hare); 
+            move(state.hare_id, 'hare',true);  
+          }  
+       
+          
+          for (var j = 0; j < 3; ++j)
+          {
+            var which = ['tortoise','hare','snail'][j];
+            document.getElementById(which+':status').textContent=state[which];
+          }
+          
+          if (!state.init)
+          {
+            if (!state.found_hare && getid(state, state.hare) == getid(state, state.tortoise))
+            {
+              move(state.hare_id, 'hare_snapshot', true);
+              state.tortoise_hare_snapshot_id = state.tortoise_id;
+              move(state.tortoise_id, 'tortoise_snapshot', true);
+              move(state.hare_id, 'hare', false);
+              state.found_hare = true;
+              document.getElementById('hare:found').textContent=
+                "tortoise="+state.tortoise+", hare="+state.hare+
+                ", period="+(state.hare-state.tortoise)+" ("+
+                (state.hare+state.tortoise)+" evaluations)";
+            }
+            if (!state.found_snail && getid(state, state.snail) == getid(state, state.tortoise))
+            {
+              move(state.snail_id, 'snail_snapshot', true);
+              move(state.tortoise_id, 'tortoise_snapshot', true);
+              state.tortoise_snail_snapshot_id = state.tortoise_id;
+              state.found_snail = true;
+              document.getElementById('snail:found').textContent=
+              "snail="+state.snail+", tortoise="+state.tortoise+
+              ", period="+(state.tortoise-state.snail)+" ("+
+                (state.tortoise)+" evaluations)"; 
+            }            
+          }
+          break;
+        case 0:
+          
+          move(state.hare_id, 'hare',false);
+          if (!state.init && !state.found_hare)
+            ++state.hare;  
+          state.hare_id = 'cell:1:'+getid(state, state.hare)
+            move(state.hare_id, 'hare',true);    
+      } 
+ 
+      
+      if (++state.tick >= N)
+      {
+        state.tick = 0;
+        state.init = false;
+      }  
+    }
+    
     document.addEventListener('DOMContentLoaded',function(event) {
       var options_list = window.location.hash.slice(1).split(';');
       var options = {};
@@ -55,91 +217,152 @@
       });
       console.log(options);
       
-      var state = { Nhead: 10, Ncycle: 74, d:24 };
+      var state = { Nhead: 11, Ncycle: 74, d:24, tick:0, 
+                    init:true,
+                    tortoise_id:null, hare_id:null, snail_id:null };
       var svgc = document.getElementById('svg-container');
       var svg = addsvg('svg',svgc);
-      attr(svg, {height: 480, width:640, style: 'border: 1px solid black' });
+      attr(svg, {height: 480, width:640  });
       svg.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xlink", "http://www.w3.org/1999/xlink");
  
       var g = addsvg('g',svg);
+      attr(g, {transform: "translate(2,2)"});
       
       var L = state.d;
-      for (var k = 0; k < state.Nhead; ++k)
-      {
-        for (var j = 0; j < 3; ++j)
-        {
-          var rect = addsvg('rect',g);
-          attr(rect,  {x:  k*L,
-                      y:  j*L,
-                      width: L,
-                      height: L,
-                      id: "cell:"+k+":"+j,
-                      class: 'cell'}); 
-        }  
-      } 
+      
       var nhead = state.Nhead;
       var ncirc = state.Ncycle;
-      ncirc &= ~1;
+ 
       var nrect = 0;
-      if (ncirc > 6*nhead)
+      if (ncirc > 5.6*nhead)
       {
-        ncirc = 6*nhead;
+        ncirc = Math.floor(5.6*nhead);
         nrect = state.Ncycle-ncirc;
       }
+      ncirc &= ~1;
       nrect &= ~1;
-      var R = (ncirc*L)/2/Math.PI;
+      var ntotal = nhead + ncirc + nrect;
+      state.Ntotal = ntotal;
+      var R = (ncirc*L)/2/Math.PI ;
       var theta0 = Math.PI*2/ncirc;
-      
-      for (var k = 0; k < ncirc; ++k)
+      function addring(g,j,k,kc,righthalf)
       {
-        var knum = nhead + k + (k>=ncirc/2 ? nrect/2 : nrect);
-        var xofs = ((k>=ncirc/2 ? 0 : nrect/2) + nhead)*L;
+        var xofs = ((kc>=ncirc/2 ? 0 : nrect/2) + nhead)*L;
         var yofs = R;
-        var theta = Math.PI/2 - k*theta0;
+        var theta = Math.PI/2 - kc*theta0;
         var thetanext = theta-theta0; 
-        for (var j = 0; j < 3; ++j)
-        {
-            var path = addsvg('path',g)
-            var r = R-j*L;
-            var x0 = xofs+r*Math.cos(theta);
-            var y0 = yofs-r*Math.sin(theta);
-            var x1 = xofs+r*Math.cos(thetanext);
-            var y1 = yofs-r*Math.sin(thetanext); 
-            var x2 = xofs+(r-L)*Math.cos(thetanext);
-            var y2 = yofs-(r-L)*Math.sin(thetanext);
-            var x3 = xofs+(r-L)*Math.cos(theta);
-            var y3 = yofs-(r-L)*Math.sin(theta);
-            path.setAttribute("d",jj("M",x0,y0)
-                                 +jj(" A",r,r,0,0,1,x1,y1)
-                                 +jj(" L",x2,y2)
-                                 +jj(" A",r-L,r-L,0,0,0,x3,y3)
-                                 +" z");
-            path.setAttribute("class","cell");
-        }
-      }  
- 
-      for (var k = 0; k < nrect; ++k)
+     
+        var path = addsvg('path',g)
+        var r = R-j*L;
+        var x0 = xofs+r*Math.cos(theta);
+        var y0 = yofs-r*Math.sin(theta);
+        var x1 = xofs+r*Math.cos(thetanext);
+        var y1 = yofs-r*Math.sin(thetanext); 
+        var x2 = xofs+(r-L)*Math.cos(thetanext);
+        var y2 = yofs-(r-L)*Math.sin(thetanext);
+        var x3 = xofs+(r-L)*Math.cos(theta);
+        var y3 = yofs-(r-L)*Math.sin(theta);
+        path.setAttribute("d",jj("M",x0,y0)
+                             +jj(" A",r,r,0,0,1,x1,y1)
+                             +jj(" L",x2,y2)
+                             +jj(" A",r-L,r-L,0,0,0,x3,y3)
+                             +" z");
+        attr(path,{id: "cell:"+j+":"+k,class: "cell"});
+      }
+      for (var k = 0; k < ntotal; ++k)
       {
-        var ki = k & 1;
-        var kl = (k-ki)/2;
-        var s = ki ? 1 : -1;
-        var knum = nhead + s*kl + (ki ? 0 : ncirc/2+nrect);
         for (var j = 0; j < 3; ++j)
         {
-          var rect = addsvg('rect',g);
-          attr(rect,  {x:  (kl+nhead)*L,
-                      y:  -s*j*L+ki*(2*R-L),
+          if (k < nhead + nrect/2)
+          { 
+             
+            var rect = addsvg('rect',g);
+            attr(rect,  {x:  k*L ,
+                      y: j*L,
                       width: L,
                       height: L,
-                      id: "cell:"+knum+":"+j,
-                      class: 'cell'});
-        }
+                      id: "cell:"+j+":"+k,
+                      class: 'cell'}); 
+          }   
+          else if (k < nhead + nrect/2 + ncirc/2)
+          {
+            addring(g, j,k,k-nhead-nrect/2);
+            
+  
+          }
+          else if (k < nhead + nrect + ncirc/2)
+          {
+            var rect = addsvg('rect',g);
+            var ix = nhead+nrect-(k-nhead-ncirc/2)-1;
+            attr(rect,  {x:  ix*L ,
+                      y:  2*R-(j+1)*L,
+                      width: L,
+                      height: L,
+                      id: "cell:"+j+":"+k,
+                      class: 'cell'}); 
+          }    
+          else
+          {
+            addring(g, j, k, k-nhead-nrect);
+          }    
+        }  
       } 
+      
+      for (var j = 0; j < 3; ++j)
+      {
+        var rect = addsvg('rect',g);
+        var which = ['tortoise','hare','snail'][j];
+        y=150+1.5*(j+(j>1))*L; 
+        attr(rect,  {x: nhead*L,
+                      y: y,
+                      width: L,
+                      height: L,
+                      class: 'cell '+which}); 
+        var text = addsvg('text',g);
+        attr(text, {x: (nhead+1.5)*L,
+                    y:y+0.8*L});
+        text.appendChild(document.createTextNode(which));  
+        var status = addsvg('text',g);
+        attr(status, {x: (nhead+1.5)*L + 90,
+                    y:y+0.8*L,
+                    id: which+':status'});
+        status.appendChild(document.createTextNode('0'));  
+        
+        if (j != 0)
+        {
+          var x0 = (nhead-0.5)*L;
+          var text = addsvg('text',g);
+          attr(text, {x: x0,
+                    y:y+0.8*L,
+                    class:'textright'});
+          text.textContent=['Floyd','Brent'][j-1]+"'s method"; 
+          var w = text.getBBox().width;
+         
+          var text = addsvg('text',g);
+        attr(text, {x: x0 - w,
+                    y:y+1.8*L,
+                    id: which+':found'});
+           
+ 
+        }                        
+      }  
+      
+      setInterval(function() {onTick(state)},100);  
+      document.getElementById('restart').addEventListener('click',
+        function(event){
+          state.init=true;
+          state.found_hare=false;
+          state.found_snail=false;
+      });
+ 
+       
     });     
     </script>
     </head>
     <body>
-      <div id='svg-container' ></div>
+      <div id='svg-container' >
+      <button type="button" id="restart">restart</button>
+      </div>
      
     </body>
     </html>
