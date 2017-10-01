@@ -1,0 +1,145 @@
+  <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />
+    <link href="https://fonts.googleapis.com/css?family=Droid+Sans+Mono" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.9.1/d3.min.js"></script>
+    <style type='text/css'>
+      .hidden { 
+        display: none;
+      }
+      form {
+        font-family: "Open Sans", sans-serif;
+      }
+      #ticktock {
+        position: absolute;
+        top: 550px;
+        left: 400px;
+      }
+      svg rect, svg path {
+        shape-rendering: geometricPrecision;   
+      }
+      svg rect.cell, svg path.cell {
+        fill: none;
+        stroke: steelblue;
+      }
+       
+
+    </style>
+    <script type='text/javascript'>
+    function attr(element, attrs)
+      {
+        for (k in attrs)
+        {
+            element.setAttribute(k,""+attrs[k]);
+        }
+      } 
+    function addsvg(nodetype, parent)
+    {
+      var node = document.createElementNS("http://www.w3.org/2000/svg", nodetype);
+      if (parent)
+        parent.appendChild(node);
+      return node;   
+    }  
+    function jj()
+    {
+      return Array.prototype.slice.call(arguments).join(" "); 
+    }
+    document.addEventListener('DOMContentLoaded',function(event) {
+      var options_list = window.location.hash.slice(1).split(';');
+      var options = {};
+      options_list.forEach(function(x)
+      {
+         var kv = x.split('=',2);
+         options[kv[0]] = kv[1];
+      });
+      console.log(options);
+      
+      var state = { Nhead: 10, Ncycle: 74, d:24 };
+      var svgc = document.getElementById('svg-container');
+      var svg = addsvg('svg',svgc);
+      attr(svg, {height: 480, width:640, style: 'border: 1px solid black' });
+      svg.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xlink", "http://www.w3.org/1999/xlink");
+ 
+      var g = addsvg('g',svg);
+      
+      var L = state.d;
+      for (var k = 0; k < state.Nhead; ++k)
+      {
+        for (var j = 0; j < 3; ++j)
+        {
+          var rect = addsvg('rect',g);
+          attr(rect,  {x:  k*L,
+                      y:  j*L,
+                      width: L,
+                      height: L,
+                      id: "cell:"+k+":"+j,
+                      class: 'cell'}); 
+        }  
+      } 
+      var nhead = state.Nhead;
+      var ncirc = state.Ncycle;
+      ncirc &= ~1;
+      var nrect = 0;
+      if (ncirc > 6*nhead)
+      {
+        ncirc = 6*nhead;
+        nrect = state.Ncycle-ncirc;
+      }
+      nrect &= ~1;
+      var R = (ncirc*L)/2/Math.PI;
+      var theta0 = Math.PI*2/ncirc;
+      
+      for (var k = 0; k < ncirc; ++k)
+      {
+        var knum = nhead + k + (k>=ncirc/2 ? nrect/2 : nrect);
+        var xofs = ((k>=ncirc/2 ? 0 : nrect/2) + nhead)*L;
+        var yofs = R;
+        var theta = Math.PI/2 - k*theta0;
+        var thetanext = theta-theta0; 
+        for (var j = 0; j < 3; ++j)
+        {
+            var path = addsvg('path',g)
+            var r = R-j*L;
+            var x0 = xofs+r*Math.cos(theta);
+            var y0 = yofs-r*Math.sin(theta);
+            var x1 = xofs+r*Math.cos(thetanext);
+            var y1 = yofs-r*Math.sin(thetanext); 
+            var x2 = xofs+(r-L)*Math.cos(thetanext);
+            var y2 = yofs-(r-L)*Math.sin(thetanext);
+            var x3 = xofs+(r-L)*Math.cos(theta);
+            var y3 = yofs-(r-L)*Math.sin(theta);
+            path.setAttribute("d",jj("M",x0,y0)
+                                 +jj(" A",r,r,0,0,1,x1,y1)
+                                 +jj(" L",x2,y2)
+                                 +jj(" A",r-L,r-L,0,0,0,x3,y3)
+                                 +" z");
+            path.setAttribute("class","cell");
+        }
+      }  
+ 
+      for (var k = 0; k < nrect; ++k)
+      {
+        var ki = k & 1;
+        var kl = (k-ki)/2;
+        var s = ki ? 1 : -1;
+        var knum = nhead + s*kl + (ki ? 0 : ncirc/2+nrect);
+        for (var j = 0; j < 3; ++j)
+        {
+          var rect = addsvg('rect',g);
+          attr(rect,  {x:  (kl+nhead)*L,
+                      y:  -s*j*L+ki*(2*R-L),
+                      width: L,
+                      height: L,
+                      id: "cell:"+knum+":"+j,
+                      class: 'cell'});
+        }
+      } 
+    });     
+    </script>
+    </head>
+    <body>
+      <div id='svg-container' ></div>
+     
+    </body>
+    </html>
