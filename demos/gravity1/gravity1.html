@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!-- Gravity / Kepler orbit simulation. (c) Jason M. Sachs -->
+<style type="text/css">
+   
+    form#options {
+        width: 640px;
+    }
+    div#rateSlider {
+        width: 400px;
+    }
+</style>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
+<script src="https://code.jquery.com/jquery-1.9.1.js"></script>
+<script src="https://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+<script type="text/javascript" src="gravity1.js" ></script>
+<link rel="stylesheet" type="text/css" href="gravity1.css" />
+<script type="text/javascript">
+console.log("running inline javascript....");
+window.addEventListener('DOMContentLoaded', function() {
+    console.log("DOMContentLoaded");
+    var canvas = document.getElementById('gravity1-canvas');
+    var gravity1 = new Gravity1Simulation();
+    window.gravity1 = gravity1;
+    var fps = 20;
+    var state = {tick: 0, t: 0, tsim: 0, derivCalcRate: 100};
+    var keymap = {37: 'left', 38: 'up', 39: 'right', 40: 'down', 73: 'e+', 74:'E-', 75:'e-', 76:'E+', 107:'+', 109:'-', 32:' '};
+    var keystate = {'up':false, 'down':false, 'left':false, 'right':false, 'e+':false, 'e-': false, 'E+':false, 'E-':false, 'shift':false, 'alt':false, 'ctrl':false, '+':false, '-':false, ' ':false};
+    var keypress = {};
+    function modkey(event,isdown)
+    {
+        var keycode = event.keyCode;
+        keystate['shift'] = event.shiftKey;
+        keystate['ctrl'] = event.ctrlKey;
+        keystate['alt'] = event.altKey;
+        if (keycode in keymap)
+        {
+            var m = keymap[keycode];
+            var prevstate = keystate[m];
+            keystate[m] = isdown;
+            if (isdown && !prevstate)
+                keypress[m] = true; 
+            //console.log(keystate,keypress);
+            return true;
+        }
+        else
+        {
+            //console.log(keycode, isdown);
+            return false;
+        }
+    }   
+    var canvasFrame = document.getElementById('canvas-frame'); 
+    canvasFrame.addEventListener('keydown',function(event) { 
+        if (modkey(event, true)) { 
+            event.preventDefault(); 
+            return false;
+        }
+    }, true);
+    canvasFrame.addEventListener('keyup',function(event) { 
+        if (modkey(event, false)) {  
+            event.preventDefault(); 
+            return false;
+        }
+    }, true);
+    function settextvalue(id,value)
+    {
+        var s = isNaN(value) ? '---' : (''+value.toFixed(8)); 
+        document.getElementById(id).textContent = s;
+    }
+    function showStatistics(sim)
+    {
+        var stats = sim.getStatistics();
+        settextvalue('speed',stats.speed);
+        settextvalue('radius',stats.radius);
+        settextvalue('minradius',stats.minRadius);
+        settextvalue('maxradius',stats.maxRadius);
+        settextvalue('angmomentum',stats.angularMomentum);
+        settextvalue('eccentricity',stats.eccentricity);
+        var ke = stats.kineticEnergy;
+        var pe = stats.potentialEnergy;
+        settextvalue('total energy',ke+pe);
+        settextvalue('period',stats.period);
+    }
+    function calcUpdateRate()
+    {
+        return state.derivCalcRate/gravity1.solvers[gravity1.solvername].n;
+    }
+
+    var pausebox = $("#pausebox");
+    setInterval(function() {
+        pausebox.prop('checked', gravity1.paused);
+        if (!gravity1.paused)
+        {
+            ++state.tick;
+            state.t += 1.0/fps;
+        }
+        gravity1.updateControls(keystate,keypress);
+        keypress = {};
+        
+        var dtsim = 1.0/calcUpdateRate();
+        while (state.tsim < state.t)
+        {
+            gravity1.update(dtsim);
+            state.tsim += dtsim;
+        }
+        var blink = (state.tick & 7) > 1;
+        gravity1.draw(canvas, blink);
+        var ctx = canvas.getContext('2d');
+        ctx.strokeStyle = '#ff0000';
+        gravity1.drawOrbitPath(canvas);
+        ctx.stroke();
+        showStatistics(gravity1);
+    }, 1000/fps)
+    var form = document.forms['options'];
+    function displayUpdateRate()
+    {
+        $("#updateRateDisplay").text(calcUpdateRate().toFixed(1)+" Hz")
+    }
+    function solverChange(event) {
+            gravity1.solvername = event.target.value;
+            displayUpdateRate();
+    }
+    function dcE(tag) { return document.createElement(tag); }
+    function createHref(text,href)
+    {
+        var a = dcE('a');
+        a.appendChild(document.createTextNode(text));
+        a.href = href;
+        return a;
+    }
+    var solverDiv = document.getElementById('solvers');
+    for (var i = 0; i < gravity1.solverList.length; ++i)
+    {
+        var solver = gravity1.solverList[i];
+        var name = solver.name;
+        var rbtn = dcE('input');
+        rbtn.setAttribute('type','radio');
+        rbtn.setAttribute('name','solver');
+        rbtn.setAttribute('value',name);
+        if (gravity1.solvername == name)
+            rbtn.setAttribute('checked',true);
+        rbtn.addEventListener('change',solverChange);
+        solverDiv.appendChild(rbtn);
+        if (solver.href != null)
+            solverDiv.appendChild(createHref(name, solver.href));
+        else
+            solverDiv.appendChild(document.createTextNode(name));
+        solverDiv.appendChild(document.createTextNode(' ('+solver.n+')'));
+        solverDiv.appendChild(dcE('br'));
+    }
+    var derivRates = [22,27,33,39,47,56,68,82,100,120,150,180,220,270,330,390,470,560,680,820,1000,1200,1500];
+    var N = derivRates.length;
+    var rateChoice;
+    function onSliderChange(event, ui) {
+        rateChoice = derivRates[ui.value];
+        state.derivCalcRate = rateChoice;
+        $("#rateDisplay").text(rateChoice);
+        displayUpdateRate();
+    }
+    var initValue = N-5;
+    onSliderChange(null, {value: initValue});
+    $( "#rateSlider" ).slider({
+    min: 0, max: N-1, step: 1, value: initValue,
+    change: onSliderChange,
+    slide: function( event, ui ) {
+        rateChoice = derivRates[ui.value];
+        $("#rateDisplay").html(state.derivCalcRate+" &rarr; "+rateChoice);
+    }
+    });
+    $("#pausebox").change(function() { gravity1.paused = this.checked; });
+}
+);
+</script>
+</head>
+<body>
+    <div>
+    <span id='canvas-frame' tabindex='1'>
+       <canvas id="gravity1-canvas" height="480" width="640" />
+    </span>
+    </div>
+    <div id='statistics'>
+        <table>
+        <tr><td>Speed</td><td><span id='speed'></span></td></tr>
+        <tr><td>Radius</td><td><span id='radius'></span></td></tr>
+        <tr><td>Min radius</td><td><span id='minradius'></span></td></tr>
+        <tr><td>Max radius</td><td><span id='maxradius'></span></td></tr>
+        <tr><td>Period</td><td><span id='period'></span></td></tr>
+        <tr><td>Angular momentum</td><td><span id='angmomentum'></span></td></tr>
+        <tr><td>Eccentricity</td><td><span id='eccentricity'></span></td></tr>
+        <tr><td>Total energy</td><td><span id='total energy'></span></td></tr>
+        </table>
+    </div>
+    <div id='optionsForm'>
+        <form name='options'>
+            <div id='solvers'>
+            </div>
+            <div id='updateRate'>  
+               <div>Update rate: <span id="updateRateDisplay" /></div>
+               <div>Acceleration calculations per second: <span id="rateDisplay" /></div>      
+               <div id="rateSlider" ></div>
+               <div>
+               <input type="checkbox" id="pausebox">Pause</input>
+               </div>
+            </div>
+        </form>
+    </div>
+    <hr />
+    <div>
+    <p>This is a Kepler orbit simulator, showing the dynamics of a satellite around a planet or star, using a number of different solvers for differential equations. You can change the solver type used by clicking the radio buttons, and the calculation rate by changing the slider.</p>
+    <p>The differences between these solver types are described in detail in an article I wrote on the <a href="https://www.embeddedrelated.com/showarticle/474.php">embeddedrelated.com</a> website.</p>
+    <p>You can zoom in/out using the +/- keys, and alter the orbit with thrusters using the arrow keys. Arrow keys by themselves produce thrust relative to the satellite's trajectory; if you press SHIFT while using the arrow keys, it produces thrust relative to a circular orbit; if you press ALT (or OPTION on a Mac) while using the arrow keys, it produces thrust relative to the screen coordinates. (Before using any of the key controls, you need to place keyboard focus on the drawing above by clicking on it first.)</p>
+    <p>Have fun!</p>
+    <p>&mdash;Jason Sachs</p>
+    </div>
+</body>
+</html>
