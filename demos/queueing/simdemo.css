@@ -1,0 +1,72 @@
+body, input[type='button'] {
+    font-family: 'Segoe UI', 'Lucida Grande', Arial, sans-serif;
+}
+body {
+    margin: 0;
+}
+.conditional, .defer-display {
+    display: none;
+}
+.conditional.shown {
+    display: inherit;
+}
+div.title {
+    text-align: center;
+    width: 640px;
+}
+div#sim-container {
+    position: relative;
+    display: inline-block; /* size to content */
+}
+div#sim-container > .elapsed_time {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+.slider-container {
+    display: inline-block;
+}
+.slider-container > p {
+    font-size: 80%;
+    margin: 0 2px;
+}
+.slider-container > p > .indicator {
+    float: right;
+}
+.slider-container > input[type='range'] {
+    min-width: 12em;
+}
+.annotation {
+    position: absolute;
+}
+.annotation.align-center {
+    transform: translate(-50%, -50%);
+}
+form#sim-control {
+    margin: 0 8px;
+}
+table {
+    border: 1px solid black;
+    border-collapse: collapse;
+}
+table td, table th {
+    border: 1px solid black;
+}
+input#sim-autopause {
+    width: 5em;
+}
+input#sim-autopause:invalid
+{
+    border: 1px solid red;
+    border-radius: 2px;
+}
+input#sim-autopause:focus:invalid
+{
+    outline-color: red;
+}
+.centered {
+    display: block;
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
+}

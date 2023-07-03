@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Freddy's Forgery Factory</title>
+        <link rel="stylesheet" type="text/css" href="simdemo.css">
+        <!-- data-main attribute tells require.js to load
+             scripts/main.js after require.js loads. -->    
+        <script data-main="scripts/main" src="scripts/require.js"></script>
+        <script type='text/javascript'>
+        require(['main','process'],function(main, process) {
+          var params = new URLSearchParams(location.search);
+          var Aopt = {type:'constant_time'};
+          var Bopt = main.parse_spec();
+          var randseed = params.get('seed') || 123;
+
+          var v1 = 1/15;
+          var v2 = 2/420; // slow conveyor;
+          var throughput_rate = 0.003272;  
+          // chosen to synchronize oven1 and oven3 with 16 canvases between
+          var loadRate = 1/30;
+          function rgbhex(r,g,b) {
+            var rh = ("00"+Math.floor(r*256).toString(16)).slice(-2);
+            var gh = ("00"+Math.floor(g*256).toString(16)).slice(-2);
+            var bh = ("00"+Math.floor(b*256).toString(16)).slice(-2);
+            return rh+gh+bh;
+          }
+          function minutes(t) {
+              // format in minutes
+              var seconds = t % 60;
+              var m = (t-seconds)/60;
+              return m.toFixed(0)+':'+('0'+seconds.toFixed(0)).slice(-2);
+          }
+          function add_equipment(i,y,options) {
+            function conveyor(j) { return 'conveyor'+i+j; }
+            function machine(j) { return 'machine'+i+j; }
+            const randopt = {};
+            if (options.type == 'constant_time') {
+              randopt.createProcess = function(r,T) {
+                return new process.ConstantTime(T);
+              };
+            }
+            else if (options.type.startsWith('optimist')) {
+              const q = options.type.slice(8) | 0;
+              randopt.createProcess = function(r,T) {
+                const p = q * 1e-6;
+                const N = 100;
+                const k = 1;
+                return new process.OptimistsFolly(r,T,p,N,k);
+              };
+            }
+            else if (options.type == 'poisson') {
+              randopt.createProcess = function(r,T) {
+                return new process.Poisson(r,T);
+              };
+            }
+
+            const r = new process.JSF32Random(randseed);
+            var T_unit = 270;
+            function delay_process(T) { 
+              T *= T_unit;
+              return randopt.createProcess(r,T);
+            }
+            function color_process_state(model) { 
+              switch (model.process.get_state()) {
+                case "READY":
+                  return '#fff';
+                case "RUN":
+                  return '#f1ffea';
+                case "DOWN":
+                  return '#fdd';
+                case "DONE":
+                  return '#ffb';
+                default:
+                  return '#000';
+              }
+            }
+            const X1 = -1.5; // longer than it needs to be...
+            const X2 = 8;    // longer than it needs to be...
+
+            return [
+              {id: conveyor(0), type:'conveyor',
+               model:{x1:1.5,y1:0.5,x2:X2,y2:0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(1.1)]]
+              },
+              {id: machine(0), type:'machine',
+               model:{name:"canvases",x:0,y:y+0,capacity:1,insertRate:1},
+               view:{width:2, height:2, color: '#fff', display:'\u221E',
+                     count_location: 'NE'},
+               setup:[['target',machine('0q')],
+                      ['source',{
+                        rate: throughput_rate,
+                        type: 'widget',
+                        log: false
+                      }]]
+              },
+              {id: machine('0q'), type:'machine',
+               model:{name:"",x:0.4,y:0.5,capacity:null, // infinite!
+                      insertRate:100},
+               view:{width:1.2, height:1, color: '#fff', font_scale:0.7},
+               setup:[['target',conveyor(0)]]
+              },
+
+              {id: conveyor(1.1), type:'conveyor',
+               model:{x1:X1,y1:3.5,x2:1.5,y2:3.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(1)]]
+              },
+              {id: conveyor(1.2), type:'conveyor',
+               model:{x1:4.5,y1:3.5,x2:X2,y2:3.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(2.1)]]
+              },
+              {id: machine(1), type:'machine',
+               model:{name:"oven 1",x:3,y:3,capacity:4,insertRate:loadRate,
+                      batchSize:4,
+                      process: delay_process(4)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(1.2)]]
+              },
+
+              {id: conveyor(2.1), type:'conveyor',
+               model:{x1:X1,y1:6.5,x2:1.5,y2:6.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(2)]]
+              },
+              {id: conveyor(2.2), type:'conveyor',
+               model:{x1:4.5,y1:6.5,x2:X2,y2:6.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(3.1)]]
+              },
+              {id: machine(2), type:'machine',
+               model:{name:"inkjet",x:3,y:6,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(2.2)]]
+              },
+
+              {id: conveyor(3.1), type:'conveyor',
+               model:{x1:X1,y1:9.5,x2:1.5,y2:9.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(3)]]
+              },
+              {id: conveyor(3.2), type:'conveyor',
+               model:{x1:4.5,y1:9.5,x2:8,y2:9.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(4.1)]]
+              },
+              {id: machine(3), type:'machine',
+               model:{name:"brush",x:3,y:9,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(3.2)]]
+              },
+
+              {id: conveyor(4.1), type:'conveyor',
+               model:{x1:X1,y1:12.5,x2:X2,y2:12.5,v:v2,
+                      startPos:-0.5,
+                      onEntry: function(model, equip, t) {
+                          model.log('process', equip.id, t,
+                                    equip.nominalTime());
+                      }},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(5.1)]]
+              },
+              {id: machine(4), type:'machine',
+               model:{name:"oven 2",x:3,y:12,capacity:null,insertRate:0},
+               view:{width:8,height:2, color:function(model) {
+                  var t = model.t;
+                  var k = 0.015;
+                  var glow = 0.01*Math.sin(2*Math.PI*k*t);
+                  return '#'+rgbhex(0.999,0.94+glow,0.92)+'e0';
+               },
+               show_count:false},
+              },
+
+              {id: conveyor(5.1), type:'conveyor',
+               model:{x1:X1,y1:15.5,x2:1.5,y2:15.5,v:v1,
+                      startPos:-0.5},
+               view:{color:'#9d9'},
+               setup:[['target',machine(5)]]
+              },
+              {id: conveyor(5.2), type:'conveyor',
+               model:{x1:4.5,y1:15.5,x2:X2,y2:15.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(6.1)]]
+              },
+              {id: machine(5), type:'machine',
+               model:{name:"inspect 1",x:3,y:15,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(5.2)]]
+              },
+
+              {id: conveyor(6.1), type:'conveyor',
+               model:{x1:X1,y1:18.5,x2:1.5,y2:18.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(6)]]
+              },
+              {id: conveyor(6.2), type:'conveyor',
+               model:{x1:4.5,y1:18.5,x2:X2,y2:18.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(7.1)]]
+              },
+              {id: machine(6), type:'machine',
+               model:{name:"oven 3",x:3,y:18,capacity:4,insertRate:loadRate,
+                      batchSize: 4,
+                      process: delay_process(4)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt:minutes},
+               setup:[['target',conveyor(6.2)]]
+              },
+
+              {id: conveyor(7.1), type:'conveyor',
+               model:{x1:X1,y1:21.5,x2:1.5,y2:21.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(7)]]
+              },
+              {id: conveyor(7.2), type:'conveyor',
+               model:{x1:4.5,y1:21.5,x2:X2,y2:21.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(8.1)]]
+              },
+              {id: machine(7), type:'machine',
+               model:{name:"inspect 2",x:3,y:21,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(7.2)]]
+              },
+            
+              {id: conveyor(8.1), type:'conveyor',
+               model:{x1:X1,y1:24.5,x2:4.5,y2:24.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(8)]]
+              },
+              {id: machine(8), type:'machine',
+               model:{name:"storage",x:6,y:24,capacity:null,insertRate:loadRate},
+               view:{width:2, height:2, color:'#fff', display:'processed'},
+               setup:[['target','end'+i]]
+              },
+              {id: 'end'+i, type:'sink'},
+              {id: 'reseed'+i, type:'executor',
+               model:{onClear:function() {r.seed(randseed);}}}
+            ];
+          }
+          var equipment = [];
+          equipment.push(add_equipment(0,0,Aopt));
+          var annotations = [];
+          [Aopt, Bopt].forEach(function(opt, i){
+              if (opt != null && opt.title)
+              {
+                  annotations.push({
+                     text:     opt.title,
+                     x:        9,
+                     y:        -1 + i*yofs,
+                     halign:   'center',
+                     fontSize: 16
+                  });
+              }
+          });
+          main.setup({
+              height: 830,
+              width: 258,
+              xofs: 5,
+              yofs: 10,
+              simulation: {
+                  equipment: equipment,
+                  time_scale_spacing: main.E27,
+                  warmup_time: 7800
+              },
+              annotations: annotations,
+              show_time: false
+          });
+       } );
+        </script>
+    </head>
+    <body>
+        <style type="text/css">
+          div#sim-container {
+            position: absolute;
+            top: 10px;
+            left: 1px;
+          }
+          table.machine_table td.machine-cell {
+            border:none;
+          }
+          table.machine_table td div.machine {
+            min-height: 91px;
+            min-width: 256px;
+          }
+          table.machine_table td div.machine2 {
+            min-height: 185px;
+            min-width: 256px;
+          }
+          table.machine_table td {
+            vertical-align: top;
+            font-size: 85%;
+          }
+          table.machine_table .legend {
+            display: flex;
+            gap: 0px 15px;
+            flex-wrap: wrap;
+            margin-top: 2px;
+          }
+          table.machine_table .legend > .legend-item {
+            width: 130px;
+            vertical-align: baseline;
+            padding: 1px 2px;
+          }
+          table.machine_table span.legend-symbol {
+            position: relative;
+            border: 1px solid black;
+            width: 15px;
+            height: 15px;
+            display: inline-block;
+            vertical-align: middle;
+            top: -1px;
+          }
+          table.machine_table span.legend-symbol.status-ready { background-color: #fff; }
+          table.machine_table span.legend-symbol.status-run   { background-color: #f1ffea; }
+          table.machine_table span.legend-symbol.status-done  { background-color: #ffb; }
+      </style>
+        <div style="position: relative;">
+          <table class="machine_table">
+            <tr><th>Machine</th><th>Description</th><th>Time</th></tr>
+            <tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Canvas loader</b>:	A source of canvases, sending each canvas into production at a regular rate.</td>
+              <td></td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Oven 1</b>: Rapid aging of the bare canvas. Batch tool: holds four canvases at once.
+                <div class="legend">
+                  <div class="legend-item"><span class="legend-symbol status-ready"></span> Ready for inputs</div>
+                  <div class="legend-item"><span class="legend-symbol status-run"></span> In process</div>
+                  <div class="legend-item"><span class="legend-symbol status-done"></span> Unloading</div>
+                </div>
+              </td>
+              <td>18&nbsp;minutes<br/>(batch of 4)</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Inkjet</b>: A large-format inkjet printer, to cover most of the canvas.</td>
+              <td>4.5&nbsp;minutes</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Brush</b>: A brush robot, to apply various brush strokes and give the painting an appropriate texture.</td>
+              <td>4.5&nbsp;minutes</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Oven 2</b>: A conveyor oven for drying the paint.</td>
+              <td>28 minutes</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Inspect 1</b>: Automated visual inspection machinery for quality control</td>
+              <td>4.5 minutes</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Oven 3</b>: Rapid aging of the dry canvas. Handles a batch of four canvases at once.</td>
+              <td>18&nbsp;minutes<br/>(batch of 4)</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Inspect 2</b>: Automated visual inspection machinery for quality control</td>
+              <td>4.5 minutes</td>
+            </tr><tr>
+              <td class="machine-cell"><div class="machine" /></td>
+              <td><b>Storage</b>: A storage system for holding the finished canvases in inventory</td>
+              <td></td>
+            </tr>
+          </table>
+          <div id="sim-container"></div>
+          <form id="sim-control" class="defer-display">
+            <div class="slider-container">
+              <p>
+                <label>Simulation speed</label>
+                <span class="indicator">
+                  <output id='sim-speed-indicator'>120</output>&times;
+                </span>
+              </p>
+              <input type="range" id="sim-speed" name="sim-speed" 
+                    min="1" max="1800" value="120">
+            </div>
+            <label><input id="sim-pause" type="checkbox">Pause</label>
+            <input id="sim-restart" type="button" value="Restart"></input>
+          </form>
+        </div>
+    </body>
+</html>

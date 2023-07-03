@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Freddy's Forgery Factory</title>
+        <link rel="stylesheet" type="text/css" href="simdemo.css">
+        <!-- data-main attribute tells require.js to load
+             scripts/main.js after require.js loads. -->    
+        <script data-main="scripts/main" src="scripts/require.js"></script>
+        <script type='text/javascript'>
+        require(['main','process','uiutil'],function(main, process, ui) {
+          var params = new URLSearchParams(location.search);
+          var display_opt = params.get('display') || 'all';
+          if (display_opt == 'all') {
+              main.query('.conditional').forEach(function(element) {
+                   element.classList.add('shown');
+              });
+          }
+          else {
+              main.query('.conditional').forEach(function(element) {
+                   element.classList.remove('shown');
+              });
+          }
+          main.query('.defer-display').forEach(function(element) {
+               element.classList.remove('defer-display');
+          });
+          const infinity = Math.infinity;
+          const options = {};
+          const default_options = {
+            arrivals: 'constant_time',
+            title: '',
+            add_queues: false,
+            cycles: 1,
+            conwip: Number.POSITIVE_INFINITY
+          };
+
+          const randseed = params.get('seed') || 123;
+          const randomFactory = new process.JSF32Random.Factory(randseed);
+
+          ['A','B'].forEach(function(which) {
+            const subparams = main.params_with_prefix(params, which+':');
+            if (main.is_empty(subparams) && which == 'B')
+            {
+              options[which] = null;
+            }
+            else
+            {
+              main.set_defaults(subparams, default_options);
+              subparams['cycles'] = main.toNumber(subparams['cycles']);
+              subparams['add_queues'] = subparams['add_queues'] == 'true';
+              const generator = new process.VariableDelayGenerator(randomFactory.next(),
+                                      0);
+              generator.set_type('constant');
+              subparams['generator'] = generator;
+              options[which] = subparams;
+            }
+          });
+          var Aopt = options['A'];
+          var Bopt = options['B'];
+          console.log(options);
+          
+          var v1 = 1/15;
+          var v2 = 2/420; // slow conveyor;
+          var loadRate = 1/30;
+          function rgbhex(r,g,b) {
+            var rh = ("00"+Math.floor(r*256).toString(16)).slice(-2);
+            var gh = ("00"+Math.floor(g*256).toString(16)).slice(-2);
+            var bh = ("00"+Math.floor(b*256).toString(16)).slice(-2);
+            return rh+gh+bh;
+          }
+          function minutes(t) {
+              // format in minutes
+              var seconds = t % 60;
+              var m = (t-seconds)/60;
+              return m.toFixed(0)+':'+('0'+seconds.toFixed(0)).slice(-2);
+          }
+          const logContext = new main.LogContext({time_quantum: 0.1,
+                               equip_id_filter: function(id) {
+                                 return id == 'machine0q';
+                               }
+                             });
+          function add_equipment(i,y,options) {
+            function conveyor(j) { return 'conveyor'+j; }
+            function machine(j) { return 'machine'+j; }
+            const cycle_count = options.cycles;
+            const throughput_rate = 0.003272 / cycle_count;  
+            // chosen to synchronize oven1 and oven3 with 16 canvases between
+
+            const randopt = {};
+            const arrivals = options.arrivals;
+            if (arrivals == 'constant_time') {
+              randopt.createProcess = function(r,T) {
+                return new process.ConstantTime(T);
+              };
+            }
+            else if (arrivals.startsWith('optimist')) {
+              const q = arrivals.slice(8) | 0;
+              randopt.createProcess = function(r,T) {
+                const p = q * 1e-6;
+                const N = 100;
+                const k = 1;
+                return new process.OptimistsFolly(r,T,p,N,k);
+              };
+            }
+            else if (arrivals == 'poisson') {
+              randopt.createProcess = function(r,T) {
+                return new process.Poisson(r,T);
+              };
+            }
+
+            const r = new process.JSF32Random(randseed);
+            var T_unit = 270;
+            function delay_process(T) { 
+              T *= T_unit;
+              return randopt.createProcess(r,T);
+            }
+            function color_process_state(model) { 
+              switch (model.process.get_state()) {
+                case "READY":
+                  return '#fff';
+                case "RUN":
+                  return '#f1ffea';
+                case "DOWN":
+                  return '#fdd';
+                case "DONE":
+                  return '#ffb';
+                default:
+                  return '#000';
+              }
+            }
+            const widget_cycle_colors = [
+              '#eeeeee','#fadeec','#ecfade','#deecfa'
+            ];
+            function widget_color(model) {
+              return widget_cycle_colors[model.cycle];
+            }
+            const widget_spec = {};
+            if (cycle_count > 1)
+              widget_spec['color'] = widget_color;
+            const conwip = new process.CONWIP(+options.conwip);
+            
+            const cycleTimeTracker = {};
+            options.generator.set_time(1.0/throughput_rate);
+            const equipment = [
+              {id: machine(0), type:'machine',
+               model:{name:"canvases",x:0,y:y+0,capacity:1,insertRate:1},
+               view:{width:2, height:2, color: '#fff', 
+                     display: function() { return 'WIP: '+conwip.level; },
+                     count_location: 'NW', count_align: 'left', font_scale: 0.8},
+               widget: widget_spec,
+               setup:[['target',machine('0q')],
+                      ['source',{
+                        delayGenerator: options.generator,
+                        conwip: conwip,
+                        backPressure: true,
+                        type: 'widget',
+                        log: false
+                      }]]
+              },
+              {id: machine('0q'), type:'machine',
+               model:{name:"",x:0.4,y:y+0.5,capacity:null, // infinite!
+                      insertRate:100},
+               view:{width:1.2, height:1,
+                     color: function(model) { return model.active ? '#fff' : '#ddd'},
+                     font_scale:0.7,
+                     click: function(model) {
+                       model.active = !model.active;
+                       model.setCapacity(model.active ? null : 1);
+                     }},
+               setup:[['target',conveyor(1)]]
+              },
+              {id: conveyor(1), type:'conveyor',
+               model:{x1:1.5,y1:y+0.5,x2:4.5,y2:y+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(1)]]
+              },
+              {id: machine(1), type:'machine',
+               model:{name:"oven 1",x:6,y:y+0,capacity:4,insertRate:loadRate,
+                      batchSize:4,
+                      process: delay_process(4)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(2)]]
+              },
+              {id: conveyor(2), type:'conveyor',
+               model:{x1:7.5,y1:y+0.5,x2:10.5,y2:y+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(2)]]
+              },
+              {id: machine(2), type:'machine',
+               model:{name:"inkjet",x:12,y:y+0,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(3)]]
+              },
+              {id: conveyor(3), type:'conveyor',
+               model:{x1:13.5,y1:y+0.5,x2:16.5,y2:y+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(3)]]
+              },
+              {id: machine(3), type:'machine',
+               model:{name:"brush",x:18,y:y+1.5,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:5, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(4)]]
+              },
+              {id: conveyor(4), type:'conveyor',
+               model:{x1:16.5,y1:y+3.5,x2:13.5,y2:y+3.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(4.1)]]
+              },
+              {id: conveyor(4.1), type:'conveyor',
+               model:{x1:12.5,y1:y+3.5,x2:5.5,y2:y+3.5,v:v2,
+                      startPos:-1,
+                      onEntry: function(model, equip, t, view) {
+                          model.log('process', equip.id, t,
+                                    equip.nominalTime());
+                      }},
+               view:{color:'#9d9'},
+               setup:[['target',conveyor(4.2)]]
+              },
+              {id: conveyor(4.2), type:'conveyor',
+               model:{x1:4.5,y1:y+3.5,x2:1.5,y2:y+3.5,v:v1,
+                      startPos:-1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(4)]]
+              },
+              {id: machine(8), type:'machine',
+               model:{name:"oven 2",x:9,y:y+3,capacity:null,insertRate:0},
+               view:{width:8,height:2, color:function(model) {
+                  var t = model.t;
+                  var k = 0.015;
+                  var glow = 0.01*Math.sin(2*Math.PI*k*t);
+                  return '#'+rgbhex(0.999,0.94+glow,0.92)+'e0';
+               },
+               show_count:false},
+              },
+              {id: machine(4), type:'machine',
+               model:{name:"inspect 1",x:0,y:y+4.5,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:5, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(5)]]
+              },
+              {id: conveyor(5), type:'conveyor',
+               model:{x1:1.5,y1:y+6.5,x2:4.5,y2:y+6.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(5)]]
+              },
+              {id: machine(5), type:'machine',
+               model:{name:"oven 3",x:6,y:y+6,capacity:4,insertRate:loadRate,
+                      batchSize: 4,
+                      process: delay_process(4)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt:minutes},
+               setup:[['target',conveyor(6)]]
+              },
+              {id: conveyor(6), type:'conveyor',
+               model:{x1:7.5,y1:y+6.5,x2:10.5,y2:y+6.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(6)]]
+              },
+              {id: machine(6), type:'machine',
+               model:{name:"inspect 2",x:12,y:y+6,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:2, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',(function() {
+                 const storage_conveyor = 'last_cycle';
+                 const next_cycle = 'next_cycle';
+                 return function(widget) {
+                   return (++widget.cycle < cycle_count) ? next_cycle : storage_conveyor;
+                 }
+               })()]]
+              },
+              {id: 'last_cycle', type:'conveyor',
+               model:{x1:13.5,y1:y+6.5,x2:16.5,y2:y+6.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(7)]]
+              },
+              {id: machine(7), type:'machine',
+               model:{name:"storage",x:18,y:y+6,capacity:null,insertRate:loadRate},
+               view:{width:2, height:2, color:'#fff', display:'processed',
+                     draw_extra: function(model) {
+                       if (cycleTimeTracker.latest) {
+                         return {x: 0, y:0.75, relfontsize:0.33, 
+                                 text:"Tcy "+minutes(cycleTimeTracker.latest.Tcy), 
+                                 align:"center"};
+                       }
+                     }},
+               setup:[['target','end']]
+              },
+              {id: 'end', type:'sink',
+               model:{run:function(item, t) {
+                 const timestats = {}
+                 item.events.forEach(function(event) {
+                   const t = event[0];
+                   const tag = event[1];
+                   const machine_id = event[2];
+                   if (tag == 'move' && machine_id == 'machine0q')
+                   {
+                     timestats.start = t;
+                   }
+                   if (tag == 'stop' && machine_id == 'end')
+                   {
+                     timestats.stop = t;
+                   }
+                 });
+                 if (timestats.start && timestats.stop)
+                 {
+                   cycleTimeTracker.latest = {
+                     Tcy: timestats.stop - timestats.start
+                   }
+                 }
+                 conwip.release();
+               }}},
+              {id: 'reseed', type:'executor',
+               model:{onClear: function() {
+                 r.seed(randseed);
+                 logContext.reset();
+                 conwip.reset();
+                 cycleTimeTracker.latest = null;
+              }}}
+            ];
+            if (cycle_count > 1) {
+              if (!options.add_queues)
+              {
+                throw new Error('Cycle count='+cycle_count+' requires add_queues to be set');
+              }
+              const inkjet_queue = machine(2)+'q';
+              equipment.unshift({  // put at beginning, for drawing purposes
+                id: 'next_cycle', type:'conveyor',
+                model:{x1:13.5,y1:y+5.5,x2:13.5,y2:y+1.5,v:v1},
+                view:{color:'#9d9'},
+                setup:[['target',inkjet_queue]]
+              });
+            }
+            if (options.add_queues) {
+              var eqprev = null;
+              var eq = null;
+              const oven_conveyor_id = conveyor(4.1);
+              const brush_machine_id = machine(3);
+              const storage_machine_id = machine(7);
+              for (var i = 0; i < equipment.length; ++i, eqprev = eq)
+              {
+                eq = equipment[i];
+                if (eq.type == 'conveyor'
+                    && eqprev != null 
+                    && (eqprev.type == 'machine' || eqprev.id == oven_conveyor_id)
+                    && !eqprev.id.endsWith('q')
+                    && equipment[i+1].id != storage_machine_id)
+                {
+                  if (eqprev.id == brush_machine_id)
+                    continue;
+                  const prevtargetinfo = eqprev.setup[0];
+                  if (prevtargetinfo[0] != 'target' && prevtargetinfo[1] != eq.id)
+                    continue;
+                  
+                  // beginning of conveyor belt
+                  const x = eq.model.x1;
+                  const y = eq.model.y1;
+                  const dx = eq.model.x2 - eq.model.x1;
+                  if (eq.model.y2 == eq.model.y1)
+                  {
+                    eq.model.x1 += (dx > 0) ? 1 : -1;
+                  }
+                  // shorten the conveyor belt and put q queue in front
+                  const queue_id = eqprev.id+'q';
+                  const queue = {id: queue_id, type:'machine',
+                    model:{name:"",x:x, y:y, capacity:null, // infinite
+                            insertRate: loadRate},
+                    view:{width:1, height:1, color: '#fff',
+                            font_scale:0.7},
+                    setup:[['target',eq.id]]
+                  };
+                  equipment.splice(i, 0, queue);
+                  ++i;
+                  prevtargetinfo[1] = queue_id;
+                }
+              }
+            }
+            equipment.forEach(function(equip) {
+              if (equip.model)
+                equip.model.context = logContext;
+            })
+            return equipment;
+          }
+          var equipment = [];
+          var height = 280;
+          const yofs = 10.32;
+          const delayGenerators = [];
+          equipment.push(add_equipment(0,0,Aopt));
+          delayGenerators.push(Aopt.generator);
+          if (Bopt != null) {
+              equipment.push(add_equipment(1,yofs,Bopt));
+              delayGenerators.push(Bopt.generator);
+              height += 320;
+          }
+          var annotations = [];
+          [Aopt, Bopt].forEach(function(opt, i){
+              if (opt != null && opt.title)
+              {
+                  annotations.push({
+                     text:     opt.title,
+                     x:        9,
+                     y:        -1 + i*yofs,
+                     halign:   'center',
+                     fontSize: 16
+                  });
+              }
+          });
+          const factories = {'A':{equipment: equipment[0],
+                                  log_context: equipment[0][0].model.context,
+                                  options:Aopt}}
+          if (Bopt != null) {
+            factories['B'] = {equipment: equipment[1],
+                              log_context: equipment[1][0].model.context,
+                              options:Bopt};
+          }
+
+          const rlambda = new ui.ScaledRangeSlider('arrival-rate');
+          rlambda.setValue(3600/delayGenerators[0].get_time());
+          rlambda.addChangeListener(function(target, x) {
+            delayGenerators.forEach(function(generator) {
+              generator.set_time(3600.0/x);
+              generator.notify();
+            });
+            rlambda.indicate(x.toFixed(1));
+          });
+
+          document.addEventListener('copy', function(event) {
+            const snapshot = {factories:{}};
+            for (var k in factories) {
+              const factory = factories[k];
+              const context = factory.log_context;
+              const events = [];
+              const machine_ids = {'next_cycle':1,'last_cycle':1};
+              snapshot.factories[k] = {
+                events:events, 
+                options:factory.options,
+                equipment:factory.equipment.map(function(equip) {
+                  const description={id: equip.id, type:equip.type};
+                  if (equip.type == 'machine')
+                    machine_ids[equip.id] = 1;
+                  if (equip.model && equip.model.name)
+                    description.name = equip.model.name;
+                  return description;
+                })
+              };
+              console.log("Copying events from %s... (processing %d events)", k, context.events.length);
+              context.events.forEach(function(event){
+                var log_event = false;
+                switch (event[0]) {  // event operation
+                  case 'time_ref':
+                  case 'start':
+                  case 'finish':
+                    log_event = true;
+                    break;
+                  case 'move':
+                    const equip_id = event[2];
+                    if (equip_id in machine_ids)
+                      log_event = true;    // event equipment id
+                }
+                if (log_event)
+                  events.push(event);
+              })
+            }
+            event.clipboardData.setData('text/plain', JSON.stringify(snapshot));
+            event.preventDefault();
+          });
+          main.setup({
+              height: height,
+              simulation: {
+                  equipment: equipment,
+                  time_scale_spacing: main.E27,
+              },
+              annotations: annotations
+          });
+       } );
+        </script>
+    </head>
+    <body>
+        <div class="title conditional"><h1>Freddy's Forgery Factory</h1></div>
+        <div id="sim-container"></div>
+        <form id="sim-control" class="defer-display">
+          <div class="slider-container">
+            <p>
+              <label>Canvas starts</label>
+              <span class="indicator">
+                <output id='arrival-rate-indicator'>32</output>/hour
+              </span>
+            </p>
+            <input type="range" id="arrival-rate" name="arrival-rate" 
+                  min="0.1" max="24" value="0" step="0.1">
+          </div>
+          <div class="slider-container">
+            <p>
+              <label>Simulation speed</label>
+              <span class="indicator">
+                <output id='sim-speed-indicator'>120</output>&times;
+              </span>
+            </p>
+            <input type="range" id="sim-speed" name="sim-speed" 
+                   min="1" max="1800" value="120">
+          </div>
+          <label><input id="sim-pause" type="checkbox">Pause</label> at
+          <input id="sim-autopause" type="text" pattern="^(\d+:\d\d:\d\d|)$">
+          <input id="sim-restart" type="button" value="Restart"></input>
+        </form>
+    </body>
+</html>

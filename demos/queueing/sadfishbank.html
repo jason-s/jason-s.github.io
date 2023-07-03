@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Sad Fish Bank</title>
+        <link rel="stylesheet" type="text/css" href="simdemo.css">
+        <style type="text/css">
+            div#sad-fish-logo {
+                width: 640px;
+                position: absolute;
+            }
+            #sad-fish-logo > svg {
+                width: 120px;
+                height: 35px;
+            }
+        </style>
+        <!-- data-main attribute tells require.js to load
+             scripts/main.js after require.js loads. -->    
+        <script data-main="scripts/main" src="scripts/require.js"></script>
+        <script type='text/javascript'>
+        require(['main','process','uiutil'],function(main, process, ui) {
+          var params = new URLSearchParams(location.search);
+          var Aopt = main.parse_spec(params.get('A'),'poisson');
+          var Bopt = main.parse_spec();
+          var randseed = (params.get('seed') || 123)+1;
+
+          const v1 = 1/2;
+          const a1 = 0.1;
+          const loadRate = 1/2;
+          const insertRate = 2;
+
+          function rgbhex(r,g,b) {
+            var rh = ("00"+Math.floor(r*256).toString(16)).slice(-2);
+            var gh = ("00"+Math.floor(g*256).toString(16)).slice(-2);
+            var bh = ("00"+Math.floor(b*256).toString(16)).slice(-2);
+            return rh+gh+bh;
+          }
+          function minutes(t) {
+              // format in minutes
+              var seconds = t % 60;
+              var m = (t-seconds)/60;
+              return m.toFixed(0)+':'+('0'+seconds.toFixed(0)).slice(-2);
+          }
+          const widgetLogs = [];
+          document.addEventListener('copy', function(event) {
+            const value = widgetLogs.map(function(logObject) {
+                return logObject.report();
+            });
+            event.clipboardData.setData('text/plain', JSON.stringify(value));
+            event.preventDefault();
+          });
+          function WidgetLog(id)
+          {
+            this.id = id;
+            this._log = {};
+            widgetLogs.push(this);
+          }
+          WidgetLog.prototype = {
+            log: function(type, t) {
+                const typelog = this._log[type] || [];
+                if (typelog.push(t) == 1) {
+                    this._log[type] = typelog;
+                }
+            },
+            report: function() {
+                return {id:this.id,log:this._log};
+            },
+            reset: function() {
+                this._log = {};
+            }
+          }
+
+          function add_equipment(i,y,options) {
+            function conveyor(j) { return 'conveyor'+i+j; }
+            function machine(j) { return 'machine'+i+j; }
+            const randopt = {};
+            if (options.type == 'constant_time') {
+              randopt.createProcess = function(r,T) {
+                return new process.ConstantTime(T);
+              };
+            }
+            else if (options.type.startsWith('optimist')) {
+              const q = options.type.slice(8) | 0;
+              randopt.createProcess = function(r,T) {
+                const p = q * 1e-6;
+                const N = 100;
+                const k = 1;
+                return new process.OptimistsFolly(r,T,p,N,k);
+              };
+            }
+            else if (options.type == 'poisson') {
+              randopt.createProcess = function(r,T) {
+                return new process.Poisson(r,T);
+              };
+            }
+
+            const randomFactory = new process.JSF32Random.Factory(randseed);
+            const randomView = new process.JSF32Random(randseed);
+            const widgetLog = new WidgetLog(i);
+            var T_unit = 30;
+            var throughput_rate = 1/T_unit;  
+            function delay_process(T) { 
+              T *= T_unit;
+              return randopt.createProcess(randomFactory.next(),T);
+            }
+            function color_process_state(model) { 
+              switch (model.process.get_state()) {
+                case "READY":
+                  return '#fff';
+                case "RUN":
+                  return '#f1ffea';
+                case "DOWN":
+                  return '#fdd';
+                case "DONE":
+                  return '#ffb';
+                default:
+                  return '#000';
+              }
+            }
+            const X1 = 0;
+            const X2 = 18;
+            const c = '#ffffff'; // conveyor stripe color
+            const delayGenerator = new process.VariableDelayGenerator(randomFactory.next(),1.0/throughput_rate);
+            delayGenerator.set_type('poisson');
+            const rlambda = new ui.ScaledRangeSlider('arrival-rate');
+                rlambda.addChangeListener(function(target, x) {
+                  delayGenerator.set_time(60.0/x);
+                  delayGenerator.notify();
+                  rlambda.indicate(x.toFixed(2));
+                });
+
+            const entrance_id = machine('0q');
+            const teller_id = machine(1);
+            const conveyor_view_style = {color:c, centerline_color:'#d0d0d0'};
+            const logContext = new main.LogContext({notify_objects: true});
+            const result = [
+              {id: machine(0), type:'machine',
+               model:{name:"entrance",x:0.25,y:-0.5,capacity:1,insertRate:1},
+               view:{width:1.5, height:1.5, color: '#fff', display:' '},
+               widget: {class: 'WidgetPerson', 
+                        options:{randomGenerator: function() { return randomView.nextfloat(); }}},
+               setup:[['target',entrance_id],
+                      ['source',{
+                        delayGenerator: delayGenerator,
+                        type: 'widget',
+                        log: true
+                      }]]
+              },
+              {id: entrance_id, type:'machine',
+               model:{name:"",x:0.25,y:-0.5,capacity:null, // infinite!
+                      insertRate:100},
+               view:{width:1.5, height:1.5, color: '#fff'},
+               setup:[['target',conveyor(0)]]
+              },
+              {id: conveyor(0), type:'conveyor',
+               model:{x1:X1+1.5,y1:-0.25,x2:X2,y2:-0.25,v:v1,acceleration:a1,
+                      endPos:0},
+               view:conveyor_view_style,
+               setup:[['target',conveyor(0.1)]]
+              },
+              {id: conveyor(0.1), type:'conveyor',
+               model:{x1:X2,y1:-0.25,x2:X2,y2:1.25,v:v1,acceleration:a1,
+                      insertRate:insertRate,
+                      startPos:0, endPos: 0},
+               view:{draw:false},
+               setup:[['target',conveyor(1)]]
+              },
+              {id: conveyor(1), type:'conveyor',
+               model:{x1:X2,y1:1.25,x2:X1,y2:1.25,v:v1,acceleration:a1,
+                      insertRate:insertRate,
+                      startPos:0, endPos:0},
+               view:conveyor_view_style,
+               setup:[['target',conveyor(1.1)]]
+              },
+              {id: conveyor(1.1), type:'conveyor',
+               model:{x1:X1,y1:1.25,x2:X1,y2:2.75,v:v1,acceleration:a1,
+                      insertRate:insertRate,
+                      startPos:0, endPos:0},
+               view:{draw:false},
+               setup:[['target',conveyor(2)]]
+              },
+              {id: conveyor(2), type:'conveyor',
+               model:{x1:X1,y1:2.75,x2:X2-3,y2:2.75,v:v1,acceleration:a1,
+                      insertRate:insertRate,
+                      startPos:0},
+               view:conveyor_view_style,
+               setup:[['target',teller_id]]
+              },
+              {id: teller_id, type:'machine',
+               model:{name:"teller",x:16.25,y:2.5,capacity:1,insertRate:loadRate,
+                      process: delay_process(1)},
+               view:{width:1.5, height:1.5, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',machine(2)]]
+              },
+              {id: machine(2), type:'machine',
+               model:{name:"exit",x:17.75,y:2.5,capacity:null,insertRate:loadRate},
+               view:{width:1.5, height:1.5, color:'#fff', display:'processed'},
+               setup:[['target','end'+i]]
+              },
+              {id: 'end'+i, type:'sink',
+               model:{run: function(widget) {
+                widget.events.forEach(function(event) {
+                    const t = event[0];
+                    const type = event[1];
+                    if (type == 'eject')
+                      return;
+                    const machine = event[2];
+                    if (machine == entrance_id)
+                      widgetLog.log('entrance',t);
+                    if (machine == teller_id) {
+                      widgetLog.log('teller_'+type,t);
+                      if (type == 'start') {
+                        widgetLog.log('teller_time',event[3]);
+                      }
+                    }
+                });
+               }}},
+              {id: 'reseed'+i, type:'executor',
+               model:{onClear: function() { 
+                        randomView.seed(randseed);
+                        randomFactory.reset();
+                        logContext.reset();
+                        widgetLogs.forEach(function(log) { log.reset(); });
+                     }},
+              }
+            ];
+            result.forEach(function(equip){
+              if (equip.model)
+                equip.model.context = logContext;
+            });
+            return result;
+          }
+          var equipment = [];
+          equipment.push(add_equipment(0,0,Aopt));
+          var annotations = [];
+          [Aopt, Bopt].forEach(function(opt, i){
+              if (opt != null && opt.title)
+              {
+                  annotations.push({
+                     text:     opt.title,
+                     x:        9,
+                     y:        -1 + i*yofs,
+                     halign:   'center',
+                     fontSize: 16
+                  });
+              }
+          });
+          main.setup({
+              height: 170,
+              width: 640,
+              scale: 32,
+              xofs: 0,
+              yofs: 20,
+              simulation: {
+                  equipment: equipment,
+                  time_scale_spacing: main.E27,
+                  warmup_time: 0
+              },
+              annotations: annotations,
+          });
+       } );
+        </script>
+    </head>
+    <body>
+        <div style="position: relative;">
+          <div id="sad-fish-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" class="centered">
+                <g transform="scale(1.2)" stroke="green" fill="none" stroke-linejoin="round" stroke-linecap="round">
+                    <path d="M 95 25 A 70 70 0 0 0 5 15 A 70 70 0 0 0 95 5" />
+                    <circle r="1.5" cx="20" cy="11"/>
+                    <path d="M 13 19 A 20 20 0 0 1 23 17" />
+                    <path d="M 30 9 A 15 15 0 0 0 30 21" />
+                    <path d="M 33 9 A 15 15 0 0 0 33 21" />
+                    <path d="M 36 9 A 15 15 0 0 0 36 21" />
+                </g>
+            </svg>            
+          </div>
+          <div id="sim-container"></div>
+          <form id="sim-control">
+              <div class="slider-container">
+                <p>
+                  <label>Arrival rate &lambda;</label>
+                  <span class="indicator">
+                    <output id='arrival-rate-indicator'>30</output>/min
+                  </span>
+                </p>
+                <input type="range" id="arrival-rate" name="arrival-rate" 
+                      min="0.01" max="4" value="2" step="0.01">
+              </div>
+              <div class="slider-container">
+              <p>
+                <label>Simulation speed</label>
+                <span class="indicator">
+                  <output id='sim-speed-indicator'>30</output>&times;
+                </span>
+              </p>
+              <input type="range" id="sim-speed" name="sim-speed" 
+                    min="1" max="6000" value="20">
+            </div>
+            <label><input id="sim-pause" type="checkbox">Pause</label> at
+            <input id="sim-autopause" type="text" pattern="^(\d+:\d\d:\d\d|)$">
+            <input id="sim-restart" type="button" value="Restart"></input>
+            <!-- keep from submitting form when pressing Enter -->
+            <button type="submit" disabled style="display: none" aria-hidden="true"></button>
+
+          </form>
+        </div>
+    </body>
+</html>
