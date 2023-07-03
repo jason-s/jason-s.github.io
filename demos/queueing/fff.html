@@ -26,7 +26,7 @@
           const infinity = Math.infinity;
           const options = {};
           const default_options = {
-            arrivals: 'constant_time',
+            servicing: 'constant_time',
             title: '',
             add_queues: false,
             cycles: 1,
@@ -86,14 +86,14 @@
             // chosen to synchronize oven1 and oven3 with 16 canvases between
 
             const randopt = {};
-            const arrivals = options.arrivals;
-            if (arrivals == 'constant_time') {
+            const servicing = options.servicing;
+            if (servicing == 'constant_time') {
               randopt.createProcess = function(r,T) {
                 return new process.ConstantTime(T);
               };
             }
-            else if (arrivals.startsWith('optimist')) {
-              const q = arrivals.slice(8) | 0;
+            else if (servicing.startsWith('optimist')) {
+              const q = servicing.slice(8) | 0;
               randopt.createProcess = function(r,T) {
                 const p = q * 1e-6;
                 const N = 100;
@@ -101,7 +101,7 @@
                 return new process.OptimistsFolly(r,T,p,N,k);
               };
             }
-            else if (arrivals == 'poisson') {
+            else if (servicing == 'poisson') {
               randopt.createProcess = function(r,T) {
                 return new process.Poisson(r,T);
               };
