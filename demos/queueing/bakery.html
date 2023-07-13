@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Red Laser Bakery</title>
+        <link rel="stylesheet" type="text/css" href="simdemo.css">
+        <!-- data-main attribute tells require.js to load
+             scripts/main.js after require.js loads. -->    
+        <script data-main="scripts/main" src="scripts/require.js"></script>
+        <script type='text/javascript'>
+        require(['main','process','uiutil','machine'],
+                function(main, process, ui, machine_lib) {
+          var params = new URLSearchParams(location.search);
+          var display_opt = params.get('display') || 'all';
+          if (display_opt == 'all') {
+              main.query('.conditional').forEach(function(element) {
+                   element.classList.add('shown');
+              });
+          }
+          else {
+              main.query('.conditional').forEach(function(element) {
+                   element.classList.remove('shown');
+              });
+          }
+          main.query('.defer-display').forEach(function(element) {
+               element.classList.remove('defer-display');
+          });
+          const infinity = Math.infinity;
+          const options = {};
+          const default_options = {
+            servicing: 'constant_time',
+            title: '',
+            add_queues: false,
+            cycles: 1,
+            oven_count: 1,
+            conwip: Number.POSITIVE_INFINITY
+          };
+
+          const randseed = params.get('seed') || 123;
+          const randomFactory = new process.JSF32Random.Factory(randseed);
+
+          ['A','B'].forEach(function(which) {
+            const subparams = main.params_with_prefix(params, which+':');
+            if (main.is_empty(subparams) && which == 'B')
+            {
+              options[which] = null;
+            }
+            else
+            {
+              main.set_defaults(subparams, default_options);
+              subparams['cycles'] = main.toNumber(subparams['cycles']);
+              subparams['add_queues'] = subparams['add_queues'] == 'true';
+              const generator = new process.VariableDelayGenerator(randomFactory.next(),
+                                      0);
+              generator.set_type('constant');
+              subparams['generator'] = generator;
+              var ovens = subparams['oven_count'];
+              if (ovens >= 1 && ovens <= 4) {
+                ovens = Math.floor(ovens);
+              } else if (ovens < 1) {
+                ovens = 1;
+              } else {
+                ovens = 4;
+              }
+              subparams['oven_count'] = ovens;
+              options[which] = subparams;
+            }
+          });
+          var Aopt = options['A'];
+          var Bopt = options['B'];
+          console.log(options);
+          
+          var v1 = 1/5;
+          var v2 = 2/420; // slow conveyor;
+          var loadRate = 1/10;
+          function rgbhex(r,g,b) {
+            var rh = ("00"+Math.floor(r*256).toString(16)).slice(-2);
+            var gh = ("00"+Math.floor(g*256).toString(16)).slice(-2);
+            var bh = ("00"+Math.floor(b*256).toString(16)).slice(-2);
+            return rh+gh+bh;
+          }
+          function minutes(t) {
+              // format in minutes
+              var seconds = t % 60;
+              var m = (t-seconds)/60;
+              return m.toFixed(0)+':'+('0'+seconds.toFixed(0)).slice(-2);
+          }
+          function setup_factory(i,y,options) {
+            function conveyor(j) { return 'conveyor'+j; }
+            function machine(j) { return 'machine'+j; }
+            const logContext = new main.LogContext({time_quantum: 0.1,
+                               equip_id_filter: function(id) {
+                                 return id == 'start';
+                               }
+                             });
+            const widgetLog = new main.SequenceLog(i);
+            const cycle_count = options.cycles;
+            const throughput_rate = (1/60)/2 * 0.9 / cycle_count;
+
+            const randopt = {};
+            const servicing = options.servicing;
+            const ovens = options.oven_count;
+            if (servicing == 'constant_time') {
+              randopt.createProcess = function(r,T) {
+                return new process.ConstantTime(T);
+              };
+            }
+            else if (servicing.startsWith('optimist')) {
+              const q = servicing.slice(8) | 0;
+              randopt.createProcess = function(r,T) {
+                const p = q * 1e-6;
+                const N = 100;
+                const k = 1;
+                return new process.OptimistsFolly(r,T,p,N,k);
+              };
+            }
+            else if (servicing == 'poisson') {
+              randopt.createProcess = function(r,T) {
+                return new process.Poisson(r,T);
+              };
+            }
+
+            const r = new process.JSF32Random(randseed);
+            var T_unit = 60;
+            function delay_process(T) { 
+              T *= T_unit;
+              return randopt.createProcess(r,T);
+            }
+            function const_delay_process(T) {
+              T *= T_unit;
+              return new process.ConstantTime(T);
+            }
+            function color_process_state(model) { 
+              switch (model.process.get_state()) {
+                case "READY":
+                  return '#fff';
+                case "RUN":
+                  return '#f1ffea';
+                case "DOWN":
+                  return '#fdd';
+                case "DONE":
+                  return '#ffb';
+                default:
+                  return '#000';
+              }
+            }
+            const widget_cycle_colors = [
+              '#eeeeee','#fadeec','#ecfade','#deecfa'
+            ];
+            function widget_color(model) {
+              return widget_cycle_colors[model.cycle];
+            }
+            const widget_spec = {};
+            if (cycle_count > 1)
+              widget_spec['color'] = widget_color;
+            const conwip = new process.CONWIP(+options.conwip);
+            
+            const epsilon=1e-6;
+            const cycleTimeTracker = {};
+            options.generator.set_time(1.0/throughput_rate);
+            const distgeom = {
+              y:y+(ovens)-1,
+              height:2*ovens
+            }
+            const distributor1 = new machine_lib.Distributor();
+            const distributor3 = new machine_lib.Distributor();
+            const equipment = [
+              {id: 'start', type:'machine',
+               model:{name:"pastry trays",x:0,y:y+0,capacity:1,insertRate:1},
+               view:{width:2, height:2, color: '#fff', 
+                     display: function() { return 'WIP: '+conwip.level; },
+                     count_location: 'NW', count_align: 'left', font_scale: 0.8},
+               widget: widget_spec,
+               setup:[['target',conveyor(1)],
+                      ['source',{
+                        delayGenerator: options.generator,
+                        conwip: conwip,
+                        backPressure: true,
+                        type: 'widget',
+                        log: false
+                      }]]
+              },
+              {id: conveyor(1), type:'conveyor',
+               model:{x1:1.5,y1:y+0.5,x2:1.5+epsilon,y2:y+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target','dist1']]
+              },
+              {id: 'dist1', type:'machine',
+               model:{name:"",x:2.5,y:distgeom.y,capacity:null, insertRate:loadRate},
+               view:{width:1, height:distgeom.height, font_scale:0.7, color:'white'},
+               setup:[['target',distributor1]]
+              },
+              {id: 'dist2', type:'machine',
+               model:{name:"",x:6.25,y:distgeom.y,capacity:null, insertRate:loadRate},
+               view:{width:1, height:distgeom.height, font_scale:0.7, color:'white'},
+               setup:[['target',machine(2)]]
+              },
+              {id: machine(2), type:'machine',
+               model:{name:"laser",x:7.625,y:y+0,capacity:1,insertRate:loadRate,
+                      process: delay_process(110/60)},
+               view:{width:1.75, height:2, color:color_process_state,
+                time_fmt: minutes},
+                setup:[['target',conveyor(3)]]
+              },
+              {id: conveyor(3), type:'conveyor',
+               model:{x1:9,y1:y+0.5,x2:9+epsilon,y2:y+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target','dist3']]
+              },
+              {id: 'dist3', type:'machine',
+               model:{name:"",x:10,y:distgeom.y,capacity:null, insertRate:loadRate},
+               view:{width:1, height:distgeom.height, font_scale:0.7, color:'white'},
+               setup:[['target',distributor3]]
+              },
+              {id: 'dist4', type:'machine',
+               model:{name:"",x:13.75,y:distgeom.y,capacity:null, insertRate:loadRate},
+               view:{width:1, height:distgeom.height, font_scale:0.7, color:'white'},
+               setup:[['target',machine(4)]]
+              },
+              {id: machine(4), type:'machine',
+               model:{name:"laser",x:15.125,y:y+0,capacity:1,insertRate:loadRate,
+                      process: delay_process(110/60)},
+               view:{width:1.75, height:2, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(5)]]
+              },
+              {id: conveyor(5), type:'conveyor',
+               model:{x1:16.5,y1:y+0.5,x2:16.5+epsilon,y2:y+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target',machine(7)]]
+              },
+              {id: machine(7), type:'machine',
+               model:{name:"storage",x:18,y:y+0,capacity:null,insertRate:loadRate},
+               view:{width:2, height:2, color:'#fff', display:'processed',
+                     draw_extra: function(model) {
+                       if (cycleTimeTracker.latest) {
+                         return {x: 0, y:0.75, relfontsize:0.33, 
+                                 text:"Tcy "+minutes(cycleTimeTracker.latest.Tcy), 
+                                 align:"center"};
+                       }
+                     }},
+               setup:[['target','end']]
+              },
+              {id: 'end', type:'sink',
+               model:{run:function(item, t) {
+                 // Every time a widget reaches the end, log events 
+                 const timestats = {}
+                 item.events.forEach(function(event) {
+                   const t = event[0];
+                   const tag = event[1];
+                   const machine_id = event[2];
+                   if (tag == 'move' && machine_id == 'start')
+                   {
+                     timestats.start = t;
+                     widgetLog.log('start', t);
+                   }
+                   if (tag == 'stop' && machine_id == 'end')
+                   {
+                     timestats.stop = t;
+                     widgetLog.log('stop', t);
+                   }
+                 });
+                 if (timestats.start && timestats.stop)
+                 {
+                   cycleTimeTracker.latest = {
+                     Tcy: timestats.stop - timestats.start
+                   }
+                 }
+                 conwip.release();
+               }}},
+              {id: 'reseed', type:'executor',
+               model:{onClear: function() {
+                 r.seed(randseed);
+                 randomFactory.reset();
+                 logContext.reset();
+                 widgetLog.reset();
+                 conwip.reset();
+                 distributor1.reset();
+                 distributor3.reset();
+                 cycleTimeTracker.latest = null;
+              }}}
+            ];
+            function make_start_signal(i_oven, capacity, process_time, unit_time) {
+              var first_scheduled_start_time = (i_oven/ovens) * unit_time;
+              // Start if a full batch or we reach the next scheduled start time.
+              // "this" references the oven model.
+              return function(n, t) {
+                if (this.scheduled_start_time == null)
+                  this.scheduled_start_time = first_scheduled_start_time;
+                if ((n >= capacity) ||
+                    (n > 0 && t >= this.scheduled_start_time))
+                {
+                  while (this.scheduled_start_time < t+process_time) {
+                    this.scheduled_start_time += unit_time;
+                  }
+                  return true;
+                }
+                return false;
+              }
+            }
+            const oven_time_minutes = 40;
+            const oven_time_schedule = 60*60;
+            for (var i_oven = 0; i_oven < ovens; ++i_oven) {
+              const suffix = 'abcd'[i_oven];
+              const yofs = 2*i_oven;
+              const last_oven = (i_oven+1 == ovens);
+              
+              equipment.push({
+               id: machine(1)+suffix, type:'machine',
+               model:{name:last_oven?"ovens":"",x:3.875,y:y+yofs,capacity:12,insertRate:loadRate,
+                      batchSize:12,
+                      ready_to_start: make_start_signal(i_oven, 12, 
+                                                        oven_time_minutes*60,
+                                                        oven_time_schedule),
+                      cleanup: function() { this.scheduled_start_time = null; },
+                      process: const_delay_process(oven_time_minutes)},
+               view:{width:1.75, height:2, font_scale:0.85, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(2)+suffix],
+                      ['target_of',distributor1]]
+              });
+              equipment.push({
+               id: conveyor(2)+suffix, type:'conveyor',
+               model:{x1:5.25,y1:y+yofs+0.5,x2:5.25+epsilon,y2:y+yofs+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target','dist2']]
+              });
+              equipment.push({
+               id: machine(3)+suffix, type:'machine',
+               model:{name:last_oven?"ovens":"",x:11.375,y:y+yofs,capacity:12,insertRate:loadRate,
+                      batchSize:12,
+                      ready_to_start: make_start_signal(i_oven, 12, 
+                                                        oven_time_minutes*60,
+                                                        oven_time_schedule),
+                      cleanup: function() { this.scheduled_start_time = null; },
+                      process: const_delay_process(oven_time_minutes)},
+               view:{width:1.75, height:2, font_scale:0.85, color:color_process_state,
+                     time_fmt: minutes},
+               setup:[['target',conveyor(4)+suffix],
+                      ['target_of',distributor3]]
+              });
+              equipment.push({
+               id: conveyor(4)+suffix, type:'conveyor',
+               model:{x1:12.75,y1:y+yofs+0.5,x2:12.75+epsilon,y2:y+yofs+0.5,v:v1},
+               view:{color:'#9d9'},
+               setup:[['target','dist4']]
+              });
+            }
+
+            equipment.forEach(function(equip) {
+              if (equip.model)
+                equip.model.context = logContext;
+            })
+            return {
+              equipment: equipment,
+              log_context: logContext,
+              widgetLog: widgetLog,
+              options: options
+            };
+          }
+          const factories = {};
+          var height = 28 + 62*Aopt.oven_count;
+          const yofs = 1.9 + 2.0*Aopt.oven_count;
+          const delayGenerators = [];
+          factories['A'] = setup_factory(0,0,Aopt);
+          delayGenerators.push(Aopt.generator);
+          if (Bopt != null) {
+              factories['B'] = setup_factory(1,yofs,Bopt);
+              delayGenerators.push(Bopt.generator);
+              height += 60 + 62*Bopt.oven_count;
+          }
+          var annotations = [];
+          [Aopt, Bopt].forEach(function(opt, i){
+              if (opt != null && opt.title)
+              {
+                  annotations.push({
+                     text:     opt.title,
+                     x:        9,
+                     y:        -1 + i*yofs,
+                     halign:   'center',
+                     fontSize: 16
+                  });
+              }
+          });
+          function factory_equipment(factories) {
+            const equipment = [];
+            for (var name in factories) {
+              equipment.push(factories[name].equipment);
+            }
+            return equipment
+          }
+
+          const rlambda = new ui.ScaledRangeSlider('arrival-rate');
+          rlambda.setValue(3600/delayGenerators[0].get_time());
+          rlambda.addChangeListener(function(target, x) {
+            delayGenerators.forEach(function(generator) {
+              generator.set_time(3600.0/x);
+              generator.notify();
+            });
+            rlambda.indicate(x.toFixed(1));
+          });
+
+          document.addEventListener('copy', function(event) {
+            const snapshot = {factories:{}};
+            for (var k in factories) {
+              const factory = factories[k];
+              const context = factory.log_context;
+              const events = [];
+              const machine_ids = {'next_cycle':1,'last_cycle':1};
+              console.log("Taking a snapshot of factory %s", k);
+              snapshot.factories[k] = {
+                events:events,
+                widgetLog: factory.widgetLog.report(),
+                options:factory.options,
+                equipment:factory.equipment.map(function(equip) {
+                  const description={id: equip.id, type:equip.type};
+                  if (equip.type == 'machine')
+                    machine_ids[equip.id] = 1;
+                  if (equip.model && equip.model.name)
+                    description.name = equip.model.name;
+                  return description;
+                })
+              };
+              console.log("Copying events from %s... (processing %d events)", k, context.events.length);
+              context.events.forEach(function(event){
+                var log_event = false;
+                switch (event[0]) {  // event operation
+                  case 'time_ref':
+                  case 'start':
+                  case 'finish':
+                    log_event = true;
+                    break;
+                  case 'move':
+                    const equip_id = event[2];
+                    if (equip_id in machine_ids)
+                      log_event = true;    // event equipment id
+                }
+                if (log_event)
+                  events.push(event);
+              })
+            }
+            event.clipboardData.setData('text/plain', JSON.stringify(snapshot));
+            event.preventDefault();
+          });
+          main.setup({
+              height: height,
+              simulation: {
+                  equipment: factory_equipment(factories),
+                  time_scale_spacing: main.E27,
+              },
+              annotations: annotations
+          });
+       } );
+        </script>
+    </head>
+    <body>
+        <div class="title conditional"><h1>Red Laser Bakery</h1></div>
+        <div id="sim-container"></div>
+        <form id="sim-control" class="defer-display">
+          <div class="slider-container">
+            <p>
+              <label>Tray starts</label>
+              <span class="indicator">
+                <output id='arrival-rate-indicator'>0</output>/hour
+              </span>
+            </p>
+            <input type="range" id="arrival-rate" name="arrival-rate" 
+                  min="0.1" max="48" value="0" step="0.1">
+          </div>
+          <div class="slider-container">
+            <p>
+              <label>Simulation speed</label>
+              <span class="indicator">
+                <output id='sim-speed-indicator'>60</output>&times;
+              </span>
+            </p>
+            <input type="range" id="sim-speed" name="sim-speed" 
+                   min="1" max="1800" value="60">
+          </div>
+          <label><input id="sim-pause" type="checkbox">Pause</label> at
+          <input id="sim-autopause" type="text" pattern="^(\d+:\d\d:\d\d|)$">
+          <input id="sim-restart" type="button" value="Restart"></input>
+        </form>
+    </body>
+</html>

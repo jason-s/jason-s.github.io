@@ -248,5 +248,6 @@ define([], function() {
 
     return {Model: WidgetModel,
             View: WidgetView,
-            PersonView: WidgetPersonView}
+            PersonView: WidgetPersonView
+           };
 })

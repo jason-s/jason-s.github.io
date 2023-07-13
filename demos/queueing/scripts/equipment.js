@@ -78,5 +78,19 @@ define([], function() {
         }
 
     }
-    return {Equipment: Equipment};
+
+    function BaseModel() {}
+    function subclass(T, Tbase, methods) {
+        T.prototype = new Tbase();
+        for (var name in methods) {
+            T.prototype[name] = methods[name];
+        }
+    }
+    function defineModel(T, methods) {
+        subclass(T, BaseModel, methods);
+    }
+
+    return {BaseModel: BaseModel,
+            defineModel: defineModel,
+            Equipment: Equipment};
 })

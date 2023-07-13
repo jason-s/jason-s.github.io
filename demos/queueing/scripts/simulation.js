@@ -61,9 +61,24 @@ define(["conveyor","widget","machine","equipment","sink","process"],
                                     return lookup(subject(widget));
                                 }
                             }
+                            else if (subject instanceof equipment.BaseModel)
+                            {
+                                model.target = subject;
+                            }
                             else {
                                 throw new TypeError(spec.id+":setup: Unknown target "+subject);
                             }
+                            break;
+                        case 'target_of':
+                            // reverse target for 1:many
+                            var subject = data;
+                            if (typeof subject === 'string') {
+                                var target_record = eq.manifest[subject];
+                                if (!target_record)
+                                    throw new ReferenceError(spec.id+":setup: Unknown equipment '"+subject+"'");
+                                subject = target_record.model;
+                            }
+                            subject.setup('target', model);
                             break;
                         default:
                             var context = {

@@ -1,4 +1,4 @@
-define([],function() {
+define(['equipment'],function(equipment) {
     function FIFO()
     {
         this.items = [];
@@ -69,6 +69,13 @@ define([],function() {
         this._state.next = this._state.prev + delay;
     }
 
+    /*
+     * Model of a machine includes three queues:
+     * 1. items: a FIFO of items before processing
+     * 2. inProcess: a list of items undergoing processing
+     * 3. outgoing: if the target object has a nonzero insert rate,
+     *    then we let the target dwell.
+     */
     function Model(id, options)
     {
         this.id = id;
@@ -87,14 +94,27 @@ define([],function() {
         this.items = new FIFO();
         this.context = options.context || {log:function(op,t,equip,obj){}}
         this.inProcess = [];
+        this.outgoing = {item: null, exit_start_time: 0, justProcessed: null};
+        if (options.ready_to_start)
+            this.ready_to_start = options.ready_to_start;
+        this.cleanup = options.cleanup || function() {};
         if (this.process)
         {
             console.log("%s=%s: %s", this.id, this, this.process);
         }
     }
-    Model.prototype = {
+    equipment.defineModel(Model, {
         full: function() {
             return this.count() >= this.specs.capacity;
+        },
+        busy: function() {
+            return this.process != null && this.process.started() && !this.process.done();
+        },
+        ready: function() { // could we start?
+            return this.process == null || !this.process.started();
+        },
+        ready_to_start: function(n, t) { // is it ok to start?
+            return n >= this.specs.batchSize
         },
         insert: function(model, view, t) {
             if (this.full())
@@ -116,6 +136,9 @@ define([],function() {
             this.inProcess = [];
             if (this.process)
                 this.process.stop();
+            this.outgoing.item = null;
+            this.outgoing.justProcessed = null;
+            this.cleanup();
             return cleared;
         },
         update: function(t,dt) {
@@ -123,6 +146,7 @@ define([],function() {
             this.pull_inputs(t);
             this.process_items(t,dt);
             this.push_outputs(t);
+            this.outgoing.justProcessed = null;
             this.t = t;
         },
         process_items: function(t,dt) {
@@ -155,17 +179,21 @@ define([],function() {
 
             // ready for more!
             var item  = this.items.remove();
-            if (item == null)
-                return;
-                    
-            pq.push(item);
-            if (pq.length < this.specs.batchSize)
+            if (item != null)
+                pq.push(item);
+            
+            // Even if we didn't get a new item, check if we can start
+            if (this.busy() || !this.ready_to_start(pq.length, t))
                 return;
 
             if (this.process != null)
             {
                 this.process.start(t);
                 this.log_event_in_items('start', t);
+            }
+            else
+            {
+                this.outgoing.justProcessed = item;
             }
         },
         push_outputs: function(t) {
@@ -179,6 +207,33 @@ define([],function() {
             const target = (this.target instanceof Function)
                            ? this.target(item.model)
                            : this.target;
+            
+            // No outgoing item? Then time for an item to exit, if it can.
+            if (this.outgoing.item == null) {
+                if (this.process == null 
+                    && this.outgoing.justProcessed == item
+                    && this.count() == 1)
+                {
+                    // Special case, when this is just a queue.
+                    // OK to send out an item immediately if the queue was just empty.
+                }
+                else if (target.insertRate() > 0) {
+                    // Outgoing item with finite insert rate
+                    this.outgoing.item = item;
+                    this.outgoing.exit_start_time = t;
+                    return;
+                }
+                // Otherwise we can go ahead and insert the outgoing item.
+            } else {
+                // There is already an outgoing item in progress.
+                // Check if it's complete.
+                const out_progress = (t - this.outgoing.exit_start_time) * target.insertRate();
+                if (out_progress < 1)
+                    return;
+                
+                // Woohoo! complete!
+                this.outgoing.item = null;
+            }
             if (target.insert(item.model, item.view, t))
             {
                 var item = this.inProcess.shift();
@@ -192,9 +247,14 @@ define([],function() {
         setup: function(action, data, context) {
             if (action == 'source' && data.type == 'widget')
             {
+                const machine = this;
                 const target = this.target;
                 this.items = new Generator({
-                    create: context.create,
+                    create: function(t) {
+                        const item = context.create.apply(null, arguments);
+                        machine.log_event('move', t, item.model);
+                        return item;
+                    },
                     policy: {delayGenerator: data.delayGenerator 
                                              || new ConstantTimeGenerator(1.0/data.rate),
                              conwip: data.conwip,
@@ -214,7 +274,7 @@ define([],function() {
         setCapacity: function(capacity) {
             this.specs.capacity = (capacity == null) ? Infinity : capacity;
         }
-    }
+    });
 
     function View(options)
     {
@@ -305,7 +365,7 @@ define([],function() {
 
                 ctx.textAlign = 'center';
                 setfont(0.4);
-                if (model.process != null && model.process.started() && !model.process.done()) {
+                if (model.busy()) {
                     var elapsed = model.process.elapsed();
                     ctx.fillText(this.time_fmt(elapsed), K*tx, K*(ty + 0.5));
                     var progress = model.process.progress();
@@ -361,6 +421,64 @@ define([],function() {
         }
     }
 
+    /* Distributor: target that forwards to one of several machines */
+    function Distributor(options) {
+        this.targets = [];
+        this.currentIndex = 0;
+    }
+    equipment.defineModel(Distributor, {
+        findFirstAvailableTarget: function(f, defaultValue) {
+            const n = this.targets.length;
+            const i0 = this.currentIndex;
+            for (var i = 0; i < n; ++i) {
+                const i1 = (i+i0)%n;
+                const target = this.targets[i1];
+                const result = f(target, i1);
+                if (result != null)
+                    return result;
+            }
+            return defaultValue;
+        },
+        insert: function(model, view, t) {
+            const ifound = this.findFirstAvailableTarget(function(target, i) {
+                if (target.ready() && target.insert(model, view, t))
+                {
+                    return i;
+                } 
+            });
+            if (ifound != null)
+            {
+                this.currentIndex = ifound;
+            }
+            return ifound >= 0;
+        },
+        insertRate: function() {
+            return this.findFirstAvailableTarget(function(target, i) {
+                const rate = target.insertRate();
+                if (rate > 0)
+                    return rate;
+            }, 0);  // default insert rate of 0, if no output available.
+        },
+        full: function() {
+            /* Full if all of the targets are full or not ready. */
+            return this.targets.every(function(target) {
+                return target.full() || !target.ready();
+            })
+        },
+        add_target: function(target) {
+            this.targets.push(target);
+        },
+        setup: function(action, data, context) {
+            if (action == 'target') {
+                this.add_target(data);
+            }
+        },
+        reset: function() {
+            this.currentIndex = 0;
+        }
+    });
+
     return {Model:Model,
-            View:View};
+            View:View,
+            Distributor:Distributor};
 })

@@ -205,6 +205,27 @@ function(conveyor, simulator) {
             this.time_ref.t_next = tref + this.time_ref.q;
         },
     }
+
+    function SequenceLog(id)
+    {
+        this.id = id;
+        this._log = {};
+    }
+    SequenceLog.prototype = {
+        log: function(type, t) {
+            const typelog = this._log[type] || [];
+            if (typelog.push(t) == 1) {
+                this._log[type] = typelog;
+            }
+        },
+        report: function() {
+            return {id:this.id,log:this._log};
+        },
+        reset: function() {
+            this._log = {};
+        }
+    }
+
     return {
         setup: setup,
         parse_spec: parse_spec,
@@ -214,6 +235,7 @@ function(conveyor, simulator) {
         toNumber: toNumber,
         E27: E27,
         query: function(selector) { return [].slice.call(document.querySelectorAll(selector)); },
-        LogContext: LogContext
+        LogContext: LogContext,
+        SequenceLog: SequenceLog
     }
 })

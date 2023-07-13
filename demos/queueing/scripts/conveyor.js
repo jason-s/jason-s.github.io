@@ -24,7 +24,7 @@ define([], function() {
         this.vy = dy/this.L;
         this.target = null;
         this.specs = {
-            insertRate: 1,
+            insertRate: 0,
             velocity: options.v,
             acceleration: options.acceleration,
             startPos: (options.startPos == null) ? -1 : options.startPos,
